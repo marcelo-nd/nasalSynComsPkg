@@ -1,6 +1,6 @@
 # nasalSynComsPkg
 
-Tools for analyzing nasal synthetic community (SynCom) sequencing and metabolomics data.
+Tools for analyzing nasal synthetic community (SynCom) sequencing and metabolomics data for the "Human Nasal Microbiome Synthetic Communities" paper.
 
 This package provides a collection of functions to import, clean, align, analyze, and visualize
 nasal SynCom datasets, including feature tables, metadata, clustering results, and downstream
@@ -42,8 +42,6 @@ library(nasalSynComsPkg)
 - Identifying cluster-specific markers using limma
 - Generating publication-ready visualizations
 
-The package is designed for **research workflows** and is actively developed.
-
 ## Examples
 
 Many functions include examples in their documentation. To view them:
@@ -59,9 +57,7 @@ Some examples are marked with `\dontrun{}` because they require real experimenta
 ## Author
 
 **Marcelo Navarro Diaz**
-Postdoctoral researcher
-University of Tübingen
-Contact: marcelo.n.d@ciencias.unam.mx
+Postdoctoral researcher, University of Tübingen. Contact: marcelo.n.d@ciencias.unam.mx
 
 ## License
 
