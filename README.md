@@ -56,8 +56,10 @@ Some examples are marked with `\dontrun{}` because they require real experimenta
 
 ## Author
 
-**Marcelo Navarro Diaz**/t
-Postdoctoral researcher, University of Tübingen. Contact: marcelo.n.d@ciencias.unam.mx
+**Marcelo Navarro Diaz**<br>
+Postdoctoral researcher<br>
+University of Tübingen<br>
+Contact: marcelo.n.d@ciencias.unam.mx
 
 ## License
 
