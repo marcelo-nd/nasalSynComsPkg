@@ -13,7 +13,7 @@ CRAN and Bioconductor dependencies:
 
 ```r
 install.packages("pak")
-pak::pak("MarceloNavarroDiaz/nasalSynComsPkg")
+pak::pak("github::marcelo-nd/nasalSynComsPkg")
 ```
 
 This package depends on several Bioconductor packages (e.g. `limma`, `phyloseq`, `ComplexHeatmap`),
@@ -56,16 +56,12 @@ Many functions include examples in their documentation. To view them:
 
 Some examples are marked with `\dontrun{}` because they require real experimental data.
 
-## Development status
-
-This package is under active development.  
-The API may evolve as analyses expand and new datasets are incorporated.
-
 ## Author
 
-**Marcelo Navarro Diaz**  
-Postdoctoral researcher, microbiology  
+**Marcelo Navarro Diaz**
+Postdoctoral researcher
 University of Tübingen
+Contact: marcelo.n.d@ciencias.unam.mx
 
 ## License
 
