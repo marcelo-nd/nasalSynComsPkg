@@ -1,0 +1,32 @@
+Package: nasalSynComsPkg
+Title: Tools for Analyzing Nasal Synthetic Community Sequencing and Metabolomics Data
+Version: 0.0.0.9000
+Authors@R: 
+    person("Marcelo", "Navarro Diaz", email = "marcelo.n.d@ciencias.unam.mx", role = c("aut", "cre"))
+Description: Provides functions to import, clean, align, and analyze nasal synthetic community (SynCom)
+    datasets, including feature filtering, metadata alignment, visualization, and downstream statistics.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports: 
+    circlize,
+    cluster,
+    ComplexHeatmap,
+    dplyr,
+    ggnewscale,
+    ggpattern,
+    ggplot2,
+    ggrepel,
+    limma,
+    magrittr,
+    phyloseq,
+    purrr,
+    RColorBrewer,
+    reshape2,
+    scales,
+    stringr,
+    tibble,
+    tidyr,
+    tidyselect,
+    vegan
