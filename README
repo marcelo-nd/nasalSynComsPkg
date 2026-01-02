@@ -1,0 +1,16 @@
+# nasalSynComsPkg
+
+Tools for analyzing nasal synthetic community (SynCom) sequencing and metabolomics data.
+
+This package provides a collection of functions to import, clean, align, analyze, and visualize
+nasal SynCom datasets, including feature tables, metadata, clustering results, and downstream
+statistical analyses.
+
+## Installation
+
+The recommended way to install `nasalSynComsPkg` is via **pak**, which automatically resolves
+CRAN and Bioconductor dependencies:
+
+```r
+install.packages("pak")
+pak::pak("MarceloNavarroDiaz/nasalSynComsPkg")
