@@ -930,7 +930,7 @@ cluster_barplot_panels <- function(
     colour_palette = NULL,
     strains        = FALSE,
     best_k         = NULL,
-    species_order  = NULL   # NEW: optional custom order for species
+    species_order  = NULL
 ) {
   #require(cluster)
   #require(ggplot2)
@@ -959,30 +959,6 @@ cluster_barplot_panels <- function(
   colnames(df_long) <- c("Bacteria", "Sample", "Abundance")
   df_long <- merge(df_long, cluster_df, by = "Sample")
   
-  # ---- NEW: control species order (non-strain case uses Bacteria) + optional validation
-  if (!is.null(species_order)) {
-    present_bacteria <- unique(as.character(df_long$Bacteria))
-    missing_in_data  <- setdiff(species_order, present_bacteria)
-    
-    if (length(missing_in_data) > 0) {
-      warning(
-        "Some entries in 'species_order' are not present in the data: ",
-        paste(missing_in_data, collapse = ", ")
-      )
-    }
-    
-    # Keep only levels that are actually present to avoid introducing NA levels in the legend
-    species_order_use <- intersect(species_order, present_bacteria)
-    
-    # If user provided an order but none match, fail loudly
-    if (length(species_order_use) == 0) {
-      stop("None of the entries in 'species_order' match species in the data.")
-    }
-    
-    df_long$Bacteria <- factor(df_long$Bacteria, levels = species_order_use)
-  }
-  # ---- END NEW
-  
   # Add strain data columns if needed
   if (isTRUE(strains)) {
     df_long <- df_long %>%
@@ -990,8 +966,26 @@ cluster_barplot_panels <- function(
         strain   = paste0("Strain ", sub(".* ", "", Bacteria)),  # last token as strain
         species2 = sub(" \\d+$", "", Bacteria)                   # drop trailing number
       )
+  }
+  
+  print(unique(df_long$species2))
+  
+  if (isFALSE(strains)) {
+    p1 <- ggplot(df_long, aes(x = Sample, y = Abundance, fill = Bacteria)) +
+      geom_bar(stat = "identity") +
+      facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
+      theme_bw() +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+      ylab("Relative Abundance") +
+      ggtitle(paste("Stacked Barplot with Clusters (k =", best_k, ")"))
+    message("Created plot without strain data")
+  } else if (isTRUE(strains)) {
+    # Clean the long-format table
+    df_long <- df_long %>%
+      dplyr::filter(!is.na(Abundance) & Abundance != 0) %>%
+      dplyr::filter(!is.na(strain) & strain != 0)
     
-    # ---- NEW: control species order for strain case (fill aesthetic uses species2) + optional validation
+    # Set species order if necessary
     if (!is.null(species_order)) {
       present_species2 <- unique(as.character(df_long$species2))
       missing_in_data2 <- setdiff(species_order, present_species2)
@@ -1011,23 +1005,6 @@ cluster_barplot_panels <- function(
       
       df_long$species2 <- factor(df_long$species2, levels = species_order_use2)
     }
-    # ---- END NEW
-  }
-  
-  if (isFALSE(strains)) {
-    p1 <- ggplot(df_long, aes(x = Sample, y = Abundance, fill = Bacteria)) +
-      geom_bar(stat = "identity") +
-      facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
-      theme_bw() +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-      ylab("Relative Abundance") +
-      ggtitle(paste("Stacked Barplot with Clusters (k =", best_k, ")"))
-    message("Created plot without strain data")
-  } else if (isTRUE(strains)) {
-    # Clean the long-format table
-    df_long <- df_long %>%
-      dplyr::filter(!is.na(Abundance) & Abundance != 0) %>%
-      dplyr::filter(!is.na(strain) & strain != 0)
     
     p1 <- ggplot(data = df_long, aes(x = Sample, y = Abundance)) +
       ggpattern::geom_bar_pattern(
@@ -1064,7 +1041,7 @@ cluster_barplot_panels <- function(
   }
   
   return(list(
-    plot    = p1,
+    plot   = p1,
     df_long = df_long
   ))
 }
