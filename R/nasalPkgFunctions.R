@@ -1453,53 +1453,54 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
                           plot_title_size = 14, x_axis_text_size = 12, x_axis_title_size = 12, x_axis_text_angle = 0,
                           y_axis_title_size = 12, y_axis_text_size = 12, y_axis_text_angle = 0,
                           legend_pos = "right", legend_title_size = 12, legend_text_size = 12, legend_cols = 3, legend_key_size = 1,
-                          colour_palette = NULL){
+                          colour_palette = NULL,
+                          species_order  = NULL){
   # Creates a grid of Barplots
-
+  
   ### Step 1. Clean, join and gather the otu tables.
   sample_names = c() # to keep track of the sample names
   for (table in seq(from = 1, to = length(feature_tables), by=1)) { # iterate over all the feature tables
     # copy current feature table to avoid modifying the original table.
     feature_table <- feature_tables[[table]]
-
+    
     #print(head(feature_table)) # check the working feature table
-
+    
     if (isTRUE(strains)) {
       # Convert table with strain names to a strain-number table
       feature_table <- strain_name2strain_number(feature_table)
     }
-
+    
     # Remove rows with Zero counts
     feature_table <- filter_features_by_col_counts(feature_table, min_count = 1, col_number = 1)
-
+    
     #print(head(feature_table))
-
+    
     # save names of species
     species_names <- row.names(feature_table)
-
+    
     # Remove columns (samples) with zero count
     if (ncol(feature_table) > 1) {
       feature_table <- feature_table[, colSums(feature_table != 0) > 0]
     }
-
+    
     sample_names <- c(sample_names, colnames(feature_table))
-
+    
     #print(head(feature_table2))
-
+    
     # Create a column with the names of ASVs/OTUs using rownames.
     feature_table["species"] <- species_names
     #print(feature_table2$species)
-
+    
     # Use dplyr gather the working feature table.
     feature_table_g <- tidyr::gather(feature_table, 1:(ncol(feature_table) - 1) , key = "sample", value = "abundance")
-
+    
     #print(experiments_names[table]) # check experiment name that corresponds to working feature table.
-
+    
     # Create a column to keep track of from which experiment/treatment the samples come from.
     feature_table_g$experiment <- experiments_names[table] # the experiment name is taken from experiments_names vector
-
+    
     #print(head(feature_table_g))
-
+    
     # rbind the gathered feature tables.
     # Result is exp_plot_table, a table containing in each row species;sample;abundance;experiment data for all tables to make a barplot.
     if (table == 1) {
@@ -1510,7 +1511,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
   }
   print(sample_names) # check sample_names
   print(head(plot_df)) # check gathered table
-
+  
   ### Step 2. Convert Strain data to a graphing-compatible format.
   # Add strain data column to long dataframe
   if (isTRUE(strains)) {
@@ -1520,28 +1521,52 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
         species2 = sub(" \\d+$", "", species)  # Remove strain number from species name
       )
   }
-
+  
   print(head(plot_df))
-
+  
   ### Step 3. Clean the long-format table
   plot_df_filtered <- plot_df %>%
     filter(!is.na(abundance) & abundance != 0)
-
+  
   if (isTRUE(strains)) {
     plot_df_filtered <- plot_df_filtered %>%
       filter(!is.na(strain) & strain != 0)
   }
-
+  
   plot_df_filtered$experiment <- factor(plot_df_filtered$experiment, levels = experiments_names)
-
+  
   ### Step 4. Plotting
   # get color palette
   if (is.null(colour_palette)) {
     colour_palette <- get_palette(nColors = length(unique(plot_df$species)))
   }
-
-  print(plot_df_filtered) # check final table prevouos to plotting
-
+  
+  #print(plot_df_filtered) # check final table before to plotting
+  
+  #print(unique(plot_df_filtered$species2))
+  
+  # Select species order if necessary
+  if (!is.null(species_order)) {
+    present_species2 <- unique(as.character(plot_df_filtered$species2))
+    missing_in_data2 <- setdiff(species_order, present_species2)
+    
+    if (length(missing_in_data2) > 0) {
+      warning(
+        "Some entries in 'species_order' are not present in the strain-collapsed species ('species2'): ",
+        paste(missing_in_data2, collapse = ", ")
+      )
+    }
+    
+    species_order_use2 <- intersect(species_order, present_species2)
+    
+    if (length(species_order_use2) == 0) {
+      stop("None of the entries in 'species_order' match species2 in the data.")
+    }
+    
+    plot_df_filtered$species2 <- factor(plot_df_filtered$species2, levels = species_order_use2)
+  }
+  
+  
   # Create base plot.
   if (shared_samples) {
     p1 <- ggplot(data = plot_df_filtered, aes(x = experiment, y=abundance)) +
@@ -1550,7 +1575,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
     p1 <- ggplot(data = plot_df_filtered, aes(x = sample, y=abundance)) +
       facet_grid(~experiment, scales = "free", space = "free")
   }
-
+  
   # Add elements based on graph type.
   if (isTRUE(strains)) {
     print("strains processing")
@@ -1572,13 +1597,13 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
                         position = position_fill(),
                         stat = "identity")
   }
-
+  
   if (!is.null(colour_palette)) {
     p1 <- p1 + ggplot2::scale_fill_manual(values=colour_palette)
   } else{
     print("Colours vec is null, using standard color palette.")
   }
-
+  
   p1 <- p1 +
     theme_void() +
     ggplot2::theme(plot.title = ggplot2::element_text(size = plot_title_size, face = "bold", hjust = 0.5, vjust = 0.5),
@@ -1590,10 +1615,10 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
                    legend.text=ggplot2::element_text(size=legend_text_size),
                    legend.position=legend_pos, legend.key.size = unit(legend_key_size, "cm")) +
     guides(fill = guide_legend(ncol = legend_cols))
-
+  
   # Show plot
   p1
-
+  
   return(p1)
 }
 
@@ -3427,7 +3452,8 @@ summarize_markers_and_heatmap_with_classes <- function(
   c_legend_ncol = 2,     # columns for both heatmap & annotation legends,
   r_legend_ncol = 2,
   legend_side = "bottom",   # "bottom", "top", "left", or "right"
-  merge_legends = FALSE     # TRUE = put all legends into one combined block
+  merge_legends = FALSE,     # TRUE = put all legends into one combined block
+  col_annot_vars = NULL
 ) {
   ## ---------- Step A: align + column annotation ----------
   # Validate required structures/columns and align samples between metab_df and metadata_df.
@@ -3435,7 +3461,7 @@ summarize_markers_and_heatmap_with_classes <- function(
   if (!(cluster_var %in% colnames(metadata_df))) {
     stop("Cluster column '", cluster_var, "' not found in metadata_df.")
   }
-
+  
   # Determine where sample IDs live in metadata (explicit column preferred, else rownames)
   if (!is.null(sample_id_col) && sample_id_col %in% colnames(metadata_df)) {
     md_ids <- as.character(metadata_df[[sample_id_col]])
@@ -3447,13 +3473,13 @@ summarize_markers_and_heatmap_with_classes <- function(
   } else {
     stop("Could not find sample IDs in metadata_df (need sample_id_col or non-empty rownames).")
   }
-
+  
   # Restrict to overlapping samples
   common <- intersect(colnames(metab_df), md_ids)
   if (length(common) == 0) {
     stop("No overlapping sample IDs between metab_df and metadata_df (", md_id_src, ").")
   }
-
+  
   # Subset metabolite table to common samples and align metadata row order
   X <- as.matrix(metab_df[, common, drop = FALSE])
   if (sample_id_col == "<rownames>") {
@@ -3463,16 +3489,36 @@ summarize_markers_and_heatmap_with_classes <- function(
     md <- metadata_df[match(common, metadata_df[[sample_id_col]]), , drop = FALSE]
     rownames(md) <- md[[sample_id_col]]
   }
-
+  
   # Column annotation: cluster membership per sample
-  ann_col_all <- data.frame(Cluster = factor(md[[cluster_var]]))
+  # ---------- Column annotations (1+ metadata variables) ----------
+  # Default: annotate with cluster_var only (backward-compatible)
+  if (is.null(col_annot_vars)) {
+    col_annot_vars <- cluster_var
+  }
+  
+  # Validate: all requested annotation variables exist
+  missing_vars <- setdiff(col_annot_vars, colnames(md))
+  if (length(missing_vars) > 0) {
+    stop(
+      "These col_annot_vars were not found in metadata_df: ",
+      paste(missing_vars, collapse = ", ")
+    )
+  }
+  
+  # Build annotation df; coerce each column to factor for discrete annotation
+  ann_col_all <- md[, col_annot_vars, drop = FALSE]
+  for (v in colnames(ann_col_all)) {
+    ann_col_all[[v]] <- factor(ann_col_all[[v]])
+  }
   rownames(ann_col_all) <- rownames(md)
+  
   message(
-    "Prepared alignment: ", ncol(X), " samples; clusters = {",
-    paste(levels(ann_col_all$Cluster), collapse = ", "),
+    "Prepared alignment: ", ncol(X), " samples; column annotations = {",
+    paste(colnames(ann_col_all), collapse = ", "),
     "}"
   )
-
+  
   ## ---------- Step B: SIRIUS row annotations ----------
   # Validate requested SIRIUS ID and class columns; join class info to metabolites.
   if (!id_col %in% colnames(sirius_df)) {
@@ -3488,19 +3534,19 @@ summarize_markers_and_heatmap_with_classes <- function(
       paste(colnames(sirius_df), collapse = ", ")
     )
   }
-
+  
   metas <- rownames(X)
   if (is.null(metas)) stop("metab_df must have metabolite rownames.")
-
+  
   # Extract IDs from metabolite rownames for joining to sirius_df
   ids_extracted <- sub(id_pattern, "\\1", metas)
-
+  
   # Keep one row per SIRIUS ID and only the requested class columns
   sirius_min <- sirius_df |>
     dplyr::mutate(.id = as.character(.data[[id_col]])) |>
     dplyr::distinct(.id, .keep_all = TRUE) |>
     dplyr::select(.id, dplyr::all_of(class_cols_present))
-
+  
   # Join metabolite->ID mapping to SIRIUS classes
   id_map <- data.frame(Metabolite = metas, .id = ids_extracted, stringsAsFactors = FALSE)
   ann_row_full <- id_map |>
@@ -3509,28 +3555,28 @@ summarize_markers_and_heatmap_with_classes <- function(
   rownames(ann_row_full) <- ann_row_full$Metabolite
   ann_row_full$Metabolite <- NULL
   if (".id" %in% colnames(ann_row_full)) ann_row_full$.id <- NULL
-
+  
   # Drop annotation columns that are entirely NA; coerce remaining to factors
   if (ncol(ann_row_full) > 0) {
     all_na <- vapply(ann_row_full, function(x) all(is.na(x)), logical(1))
     if (any(all_na)) ann_row_full <- ann_row_full[, !all_na, drop = FALSE]
     for (nm in colnames(ann_row_full)) ann_row_full[[nm]] <- droplevels(factor(ann_row_full[[nm]]))
   }
-
+  
   match_count <- sum(ids_extracted %in% unique(sirius_min$.id))
   message("SIRIUS matched IDs: ", match_count, " / ", length(ids_extracted))
-
+  
   ## ---------- Step C: select top-N markers per cluster (from limma) ----------
   if (!("markers_one_vs_rest" %in% names(limma_res))) {
     stop("limma_res must contain $markers_one_vs_rest.")
   }
-
+  
   ovr <- limma_res$markers_one_vs_rest
   req_cols <- c("Metabolite","adj.P.Val","logFC","TargetCluster")
   if (!all(req_cols %in% colnames(ovr))) {
     stop("limma_res$markers_one_vs_rest must have columns: ", paste(req_cols, collapse = ", "))
   }
-
+  
   # Filter markers by thresholds, then take top_n per target cluster
   top_by_cluster <- ovr |>
     dplyr::filter(adj.P.Val <= p_adj_thresh, logFC >= min_logFC) |>
@@ -3538,31 +3584,31 @@ summarize_markers_and_heatmap_with_classes <- function(
     dplyr::arrange(adj.P.Val, dplyr::desc(logFC), .by_group = TRUE) |>
     dplyr::slice_head(n = top_n) |>
     dplyr::ungroup()
-
+  
   top_metabs <- unique(top_by_cluster$Metabolite)
   if (!length(top_metabs)) stop("No metabolites passed thresholds; relax p_adj_thresh or min_logFC.")
-
+  
   # Subset feature table to selected metabolites
   keep <- intersect(rownames(X), top_metabs)
   if (!length(keep)) stop("Selected metabolites not found in rownames(metab_df). Check naming.")
   Xsub <- X[keep, , drop = FALSE]
-
+  
   # Optional transform for display (match limma transform settings)
   if (isTRUE(log_transform)) {
     minX <- suppressWarnings(min(Xsub, na.rm = TRUE))
     if (is.finite(minX) && minX < 0) Xsub <- Xsub - minX
     Xsub <- log(Xsub + log_offset)
   }
-
+  
   # Order columns by cluster level for visualization
   md[[cluster_var]] <- factor(md[[cluster_var]])
   col_order <- order(md[[cluster_var]], decreasing = FALSE)
   Xsub <- Xsub[, col_order, drop = FALSE]
   ann_col <- ann_col_all[colnames(Xsub), , drop = FALSE]
-
+  
   # Subset row annotations to selected metabolites
   ann_row <- ann_row_full[rownames(Xsub), , drop = FALSE]
-
+  
   # Replace missing/blank class values with a placeholder label and drop unused levels
   if (ncol(ann_row) > 0) {
     for (nm in colnames(ann_row)) {
@@ -3571,36 +3617,63 @@ summarize_markers_and_heatmap_with_classes <- function(
       ann_row[[nm]] <- droplevels(factor(v))
     }
   }
-
+  
   # Optional row scaling for display (z-scores per metabolite)
   X_display <- Xsub
   if (isTRUE(scale_rows) && nrow(X_display) > 1) {
     X_display <- t(scale(t(X_display)))
     X_display[!is.finite(X_display)] <- 0
   }
-
+  
   # ---------- Step D: build annotation colors & plot ----------
-  # Column (Cluster) palette
-  if (is.null(cluster_colors)) {
-    k <- nlevels(ann_col$Cluster)
-    cluster_colors <- setNames(
-      brewer.pal(max(3, min(8, k)), "Set2")[seq_len(k)],
-      levels(ann_col$Cluster)
-    )
+  # ---------- Column annotation palettes (one per variable) ----------
+  make_col_pal <- function(fct, prefer_set = "Set2") {
+    lev <- levels(fct)
+    n <- length(lev)
+    
+    # Brewer palettes are limited; fall back to hue if many levels
+    cols <- if (n <= 8) {
+      RColorBrewer::brewer.pal(max(3, n), prefer_set)[seq_len(n)]
+    } else if (n <= 12) {
+      RColorBrewer::brewer.pal(max(3, n), "Set3")[seq_len(n)]
+    } else {
+      scales::hue_pal()(n)
+    }
+    
+    setNames(cols, lev)
   }
-
+  
+  col_ann_cols <- list()
+  for (v in colnames(ann_col)) {
+    # Backward compatible: if the annotation variable is the cluster_var, use cluster_colors if supplied
+    if (v == cluster_var && !is.null(cluster_colors)) {
+      # Optional validation: warn if provided colors don't cover all levels
+      missing_cols <- setdiff(levels(ann_col[[v]]), names(cluster_colors))
+      if (length(missing_cols) > 0) {
+        warning(
+          "cluster_colors is missing colors for levels in ", v, ": ",
+          paste(missing_cols, collapse = ", ")
+        )
+      }
+      col_ann_cols[[v]] <- cluster_colors
+    } else {
+      col_ann_cols[[v]] <- make_col_pal(ann_col[[v]])
+    }
+  }
+  
   # Store palettes in a single list for reference / downstream reuse
-  ann_colors <- list(Cluster = cluster_colors)
-
+  ann_colors <- c(list(), col_ann_cols)
+  
+  
   # Row annotation palettes: discrete, include placeholder label color
   if (!is.null(ann_row) && ncol(ann_row) > 0) {
     make_discrete_pal <- function(vals) {
       lev <- levels(vals)
-
+      
       has_na_lab <- class_na_label %in% lev
       lev_core   <- setdiff(lev, class_na_label)
       n <- length(lev_core)
-
+      
       base <- if (n <= 12) RColorBrewer::brewer.pal(max(3, n), "Set3")[seq_len(n)] else scales::hue_pal()(n)
       pal <- setNames(base, lev_core)
       if (has_na_lab) pal[[class_na_label]] <- class_na_color
@@ -3609,30 +3682,30 @@ summarize_markers_and_heatmap_with_classes <- function(
     row_palettes <- lapply(ann_row, make_discrete_pal)
     ann_colors   <- c(ann_colors, row_palettes)
   }
-
+  
   # ---- ComplexHeatmap dependencies ----
   if (!requireNamespace("ComplexHeatmap", quietly = TRUE) ||
       !requireNamespace("circlize", quietly = TRUE)) {
     stop("Please install packages 'ComplexHeatmap' and 'circlize' for multi-column legends.")
   }
-
+  
   # Heatmap color function (symmetric around 0 for z-scored data)
   zlim <- max(abs(range(X_display, finite = TRUE)))
   col_fun <- circlize::colorRamp2(c(-zlim, 0, zlim), c("#2166AC","#F7F7F7","#B2182B"))
-
-  # Column annotation colors
-  col_ann_cols <- list(Cluster = cluster_colors)
-
+  
   # Row annotation colors: use the palettes built above so placeholder label gets its color
   row_ann_cols <- if (!is.null(ann_row) && ncol(ann_row) > 0) ann_colors[names(ann_row)] else list()
-
+  
   # Top (column) annotation with legend column control
+  col_legend_params <- rep(list(list(ncol = c_legend_ncol)), length(colnames(ann_col)))
+  names(col_legend_params) <- colnames(ann_col)
+  
   ha_top <- ComplexHeatmap::HeatmapAnnotation(
     df  = ann_col,
     col = col_ann_cols,
-    annotation_legend_param = list(ncol = c_legend_ncol)
+    annotation_legend_param = col_legend_params
   )
-
+  
   # Left (row) annotation with legend column control (or NULL if no row annotations)
   ha_left <- if (ncol(ann_row) > 0) {
     ComplexHeatmap::rowAnnotation(
@@ -3643,7 +3716,7 @@ summarize_markers_and_heatmap_with_classes <- function(
   } else {
     NULL
   }
-
+  
   # Main heatmap object
   ht <- ComplexHeatmap::Heatmap(
     X_display,
@@ -3658,11 +3731,11 @@ summarize_markers_and_heatmap_with_classes <- function(
     heatmap_legend_param = list(ncol = 2),
     column_title = sprintf("Top markers per cluster (top %d, FDR <= %.02f)", top_n, p_adj_thresh)
   )
-
+  
   # ---- Helper for saving heatmaps to common formats ----
   save_ht <- function(ht, file, width, height, dpi, legend_side, merge_legends) {
     ext <- tolower(tools::file_ext(file))
-
+    
     if (ext %in% c("pdf")) {
       grDevices::pdf(file, width = width, height = height, useDingbats = FALSE)
     } else if (ext %in% c("svg")) {
@@ -3677,7 +3750,7 @@ summarize_markers_and_heatmap_with_classes <- function(
       stop("Unsupported file extension: ", ext)
     }
     on.exit(grDevices::dev.off(), add = TRUE)
-
+    
     ComplexHeatmap::draw(
       ht,
       heatmap_legend_side = legend_side,
@@ -3685,7 +3758,7 @@ summarize_markers_and_heatmap_with_classes <- function(
       merge_legend = merge_legends
     )
   }
-
+  
   # ---- Draw or save ----
   if (!is.null(out_file)) {
     save_ht(ht, out_file, out_width, out_height, out_dpi, legend_side, merge_legends)
@@ -3697,7 +3770,7 @@ summarize_markers_and_heatmap_with_classes <- function(
       merge_legend = merge_legends
     )
   }
-
+  
   # Return key objects for reuse/inspection
   list(
     heatmap              = ht,
@@ -3710,7 +3783,6 @@ summarize_markers_and_heatmap_with_classes <- function(
     selected_metabolites = rownames(Xsub)
   )
 }
-
 
 #' Load a BIOM file as a taxonomically agglomerated feature table
 #'
