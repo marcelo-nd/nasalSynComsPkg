@@ -929,35 +929,60 @@ cluster_barplot_panels <- function(
     sample_order   = NULL,
     colour_palette = NULL,
     strains        = FALSE,
-    best_k         = NULL
+    best_k         = NULL,
+    species_order  = NULL   # NEW: optional custom order for species
 ) {
   #require(cluster)
   #require(ggplot2)
   #require(reshape2)
   #require(dplyr)
   #require(ggpattern)
-
+  
   if (is.null(best_k)) {
     stop("Argument 'best_k' must be provided.")
   }
-
+  
   # Base matrix (all samples), optionally reordered
   mat_rel_ordered <- as.matrix(abundance_df)
   if (!is.null(sample_order)) {
     mat_rel_ordered <- mat_rel_ordered[, sample_order, drop = FALSE]
   }
-
+  
   if (isTRUE(strains)) {
     message("Using strain data")
     # Convert table with strain names to a strain-number table
     mat_rel_ordered <- strain_name2strain_number(mat_rel_ordered)
   }
-
+  
   # Melt for ggplot
   df_long <- reshape2::melt(mat_rel_ordered)
   colnames(df_long) <- c("Bacteria", "Sample", "Abundance")
   df_long <- merge(df_long, cluster_df, by = "Sample")
-
+  
+  # ---- NEW: control species order (non-strain case uses Bacteria) + optional validation
+  if (!is.null(species_order)) {
+    present_bacteria <- unique(as.character(df_long$Bacteria))
+    missing_in_data  <- setdiff(species_order, present_bacteria)
+    
+    if (length(missing_in_data) > 0) {
+      warning(
+        "Some entries in 'species_order' are not present in the data: ",
+        paste(missing_in_data, collapse = ", ")
+      )
+    }
+    
+    # Keep only levels that are actually present to avoid introducing NA levels in the legend
+    species_order_use <- intersect(species_order, present_bacteria)
+    
+    # If user provided an order but none match, fail loudly
+    if (length(species_order_use) == 0) {
+      stop("None of the entries in 'species_order' match species in the data.")
+    }
+    
+    df_long$Bacteria <- factor(df_long$Bacteria, levels = species_order_use)
+  }
+  # ---- END NEW
+  
   # Add strain data columns if needed
   if (isTRUE(strains)) {
     df_long <- df_long %>%
@@ -965,8 +990,30 @@ cluster_barplot_panels <- function(
         strain   = paste0("Strain ", sub(".* ", "", Bacteria)),  # last token as strain
         species2 = sub(" \\d+$", "", Bacteria)                   # drop trailing number
       )
+    
+    # ---- NEW: control species order for strain case (fill aesthetic uses species2) + optional validation
+    if (!is.null(species_order)) {
+      present_species2 <- unique(as.character(df_long$species2))
+      missing_in_data2 <- setdiff(species_order, present_species2)
+      
+      if (length(missing_in_data2) > 0) {
+        warning(
+          "Some entries in 'species_order' are not present in the strain-collapsed species ('species2'): ",
+          paste(missing_in_data2, collapse = ", ")
+        )
+      }
+      
+      species_order_use2 <- intersect(species_order, present_species2)
+      
+      if (length(species_order_use2) == 0) {
+        stop("None of the entries in 'species_order' match species2 in the data.")
+      }
+      
+      df_long$species2 <- factor(df_long$species2, levels = species_order_use2)
+    }
+    # ---- END NEW
   }
-
+  
   if (isFALSE(strains)) {
     p1 <- ggplot(df_long, aes(x = Sample, y = Abundance, fill = Bacteria)) +
       geom_bar(stat = "identity") +
@@ -981,7 +1028,7 @@ cluster_barplot_panels <- function(
     df_long <- df_long %>%
       dplyr::filter(!is.na(Abundance) & Abundance != 0) %>%
       dplyr::filter(!is.na(strain) & strain != 0)
-
+    
     p1 <- ggplot(data = df_long, aes(x = Sample, y = Abundance)) +
       ggpattern::geom_bar_pattern(
         aes(fill = species2, pattern = strain),
@@ -1009,15 +1056,15 @@ cluster_barplot_panels <- function(
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
     message("Created plot with strain data")
   }
-
+  
   if (!is.null(colour_palette)) {
     # Expecting a named vector: names must match Bacteria (rownames(abundance_df))
     p1 <- p1 + scale_fill_manual(values = colour_palette, drop = FALSE)
     message("Added custom color scale")
   }
-
+  
   return(list(
-    plot   = p1,
+    plot    = p1,
     df_long = df_long
   ))
 }
