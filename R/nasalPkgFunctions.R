@@ -935,104 +935,133 @@ cluster_barplot_panels <- function(
     cluster_df,
     sample_order   = NULL,
     colour_palette = NULL,
-    cluster_colors = NULL,  # New argument for panel headers
+    cluster_colors = NULL, # Colors for the facet headers
     strains        = FALSE,
     best_k         = NULL,
     species_order  = NULL
 ) {
-  require(dplyr)
-  require(ggplot2)
-  require(ggpattern)
-  # require(ggh4x) # Required for the colored facets
+  # Load necessary libraries (or use namespace calls)
+  # require(dplyr); require(ggplot2); require(ggpattern); require(ggh4x); require(reshape2)
   
   if (is.null(best_k)) {
     stop("Argument 'best_k' must be provided.")
   }
   
-  # Base matrix logic
+  # 1. Prepare the abundance matrix
   mat_rel_ordered <- as.matrix(abundance_df)
   if (!is.null(sample_order)) {
-    mat_rel_ordered <- mat_rel_ordered[, sample_order, drop = FALSE]
+    # Ensure we only order by samples actually present in the data
+    valid_order <- sample_order[sample_order %in% colnames(mat_rel_ordered)]
+    mat_rel_ordered <- mat_rel_ordered[, valid_order, drop = FALSE]
   }
   
-  if (isTRUE(strains)) {
+  # Handle strain renaming if the helper function exists
+  if (isTRUE(strains) && exists("strain_name2strain_number")) {
+    message("Using strain data: Converting names to numbers...")
     mat_rel_ordered <- strain_name2strain_number(mat_rel_ordered)
   }
   
-  # Melt for ggplot
+  # 2. Melt and Merge
   df_long <- reshape2::melt(mat_rel_ordered)
   colnames(df_long) <- c("Bacteria", "Sample", "Abundance")
   df_long <- merge(df_long, cluster_df, by = "Sample")
   
-  # Logic for Cluster Panel Colors
+  # 3. Determine Panel (Cluster) Colors
   unique_clusters <- sort(unique(df_long$Cluster))
   n_clusters <- length(unique_clusters)
   
   if (!is.null(cluster_colors) && length(cluster_colors) >= n_clusters) {
-    # Use provided colors
     selected_cluster_palette <- cluster_colors[1:n_clusters]
     message("Using provided palette for cluster panels.")
   } else {
-    # Default fallback
-    message("Not enough cluster colors provided (or NULL). Using standard palette.")
+    message("Not enough cluster colors provided. Using default palette.")
     selected_cluster_palette <- scales::hue_pal()(n_clusters)
   }
   
-  # Processing strain data columns
+  # 4. Process Strain/Species metadata
   if (isTRUE(strains)) {
     df_long <- df_long %>%
       dplyr::mutate(
-        strain   = paste0("Strain ", sub(".* ", "", Bacteria)),
-        species2 = sub(" \\d+$", "", Bacteria)
+        # Extract the last number as the strain ID
+        strain_num = sub(".* ", "", as.character(Bacteria)),
+        strain     = paste0("Strain ", strain_num),
+        # Extract everything before the last number as species
+        species2   = sub(" \\d+$", "", as.character(Bacteria))
       ) %>%
-      dplyr::filter(!is.na(Abundance) & Abundance != 0)
+      # Filter out zeros to keep the plot clean, but keep NA-checks safe
+      dplyr::filter(!is.na(Abundance) & Abundance > 0)
     
+    # Handle Species Ordering
     if (!is.null(species_order)) {
       present_species2 <- unique(as.character(df_long$species2))
       species_order_use2 <- intersect(species_order, present_species2)
       df_long$species2 <- factor(df_long$species2, levels = species_order_use2)
     }
+    
+    # Ensure strain is a factor for consistent pattern mapping
+    df_long$strain <- factor(df_long$strain, levels = c("Strain 1", "Strain 2", "Strain 3"))
   }
   
-  # Plot Construction
+  # 5. Build the Plot
   p1 <- ggplot(data = df_long, aes(x = Sample, y = Abundance))
   
   if (isFALSE(strains)) {
-    p1 <- p1 + geom_bar(aes(fill = Bacteria), stat = "identity")
+    # Standard Barplot
+    p1 <- p1 + geom_bar(aes(fill = Bacteria), stat = "identity", position = "stack")
   } else {
+    # Patterned Barplot
     p1 <- p1 + 
       ggpattern::geom_bar_pattern(
         aes(fill = species2, pattern = strain),
-        position = "fill", stat = "identity",
-        pattern_spacing = unit(2.5, "mm"),
-        pattern_color = "white", pattern_fill = "white"
+        position        = "fill", 
+        stat            = "identity",
+        pattern_spacing = unit(2.5, "mm"), # Large enough to see in the plot
+        pattern_density = 0.05,
+        pattern_color   = "white", 
+        pattern_fill    = "white",
+        pattern_angle   = 45
       ) +
-      ggpattern::scale_pattern_manual(values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"))
+      ggpattern::scale_pattern_manual(
+        values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe")
+      ) +
+      ggpattern::scale_pattern_spacing_manual(
+        # Match the spacing here to the geom_bar_pattern for the legend to work
+        values = c("Strain 1" = 0, "Strain 2" = unit(2.5, "mm"), "Strain 3" = unit(2.5, "mm"))
+      ) +
+      guides(
+        pattern = guide_legend(
+          title = "Strain",
+          override.aes = list(
+            fill = "grey80", 
+            pattern_fill = "white", 
+            pattern_color = "white",
+            pattern_spacing = 0.02 # Slightly adjust for legend box size
+          )
+        ),
+        fill = guide_legend(
+          title = "Species",
+          override.aes = list(pattern = "none")
+        )
+      )
   }
   
-  # The Faceting Logic with ggh4x
-  # This allows mapping the fill of the strip background to the cluster
+  # 6. Apply Faceting and Themed Strips (Headers)
   p1 <- p1 + 
-    facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
-    ggh4x::force_panelsizes(rows = 1) + # Keeps panels clean
+    ggh4x::facet_grid2(~ Cluster, 
+                       scales = "free_x", 
+                       space = "free_x",
+                       strip = ggh4x::strip_themed(
+                         background_x = ggh4x::elem_list_rect(fill = selected_cluster_palette)
+                       )) +
     theme_bw() +
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-      strip.text = element_text(color = "white", face = "bold") # Text color for contrast
-    )
+      strip.text  = element_text(color = "black", face = "bold"),
+      panel.spacing = unit(0.1, "lines")
+    ) +
+    labs(y = "Relative Abundance", title = paste("Nasal SynCom Clusters (k =", best_k, ")"))
   
-  # Apply the custom colors to the facet strips
-  p1 <- p1 + ggh4x::facetted_pos_scales(
-    x = NULL # This is where we could adjust x-scales, but we use it to trigger themed strips
-  ) + 
-    theme(
-      strip.background = element_rect(fill = "grey80") # Fallback
-    )
-  
-  # THE KEY PART: Using strip_themed from ggh4x to color the headers
-  p1 <- p1 + facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
-    ggh4x::strip_themed(background_x = ggh4x::elem_list_rect(fill = selected_cluster_palette))
-  
+  # 7. Apply Manual Fill Colors if provided
   if (!is.null(colour_palette)) {
     p1 <- p1 + scale_fill_manual(values = colour_palette, drop = FALSE)
   }
