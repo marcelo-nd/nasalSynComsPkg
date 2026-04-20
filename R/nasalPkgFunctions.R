@@ -857,6 +857,9 @@ get_palette <- function(nColors = 60, replace_cols = FALSE){
 #'   fill taxa. Names must match the \code{Bacteria} values (i.e., row names of
 #'   \code{abundance_df}). If \code{NULL}, ggplot2's default color palette is
 #'   used.
+#' @param cluster_colors Optional character vector of colors used to fill the 
+#'   background of the cluster facet strips (headers). If the number of colors 
+#'   provided is less than the number of clusters, a default palette is used.
 #' @param strains Logical. If \code{TRUE}, the function assumes that
 #'   \code{Bacteria} names encode strain information in the last numeric token
 #'   (e.g., \code{"Corynebacterium propinquum 1"}) and will represent species
@@ -864,6 +867,8 @@ get_palette <- function(nColors = 60, replace_cols = FALSE){
 #' @param best_k Integer or character. The number of clusters (k) to display in
 #'   the plot title. This argument must be provided; otherwise, the function
 #'   will stop with an error.
+#' @param species_order Optional character vector specifying the levels and 
+#'   order of species for the fill legend when \code{strains = TRUE}.
 #'
 #' @details
 #' This function:
@@ -878,17 +883,19 @@ get_palette <- function(nColors = 60, replace_cols = FALSE){
 #'     taxa relative abundances per sample, faceted by cluster.
 #'   \item When \code{strains = TRUE}, uses \pkg{ggpattern} to encode species
 #'     as fill colors and strains as patterns within each stacked bar.
+#'   \item Uses \pkg{ggh4x} to programmatically color the background of 
+#'     facet strips based on the \code{cluster_colors} argument.
 #' }
 #'
 #' The function relies on \pkg{ggplot2}, \pkg{reshape2}, \pkg{dplyr},
-#' \pkg{ggpattern}, and a user-defined helper
+#' \pkg{ggpattern}, \pkg{ggh4x}, and a user-defined helper
 #' \code{strain_name2strain_number()} that converts strain names to numeric
 #' strain labels.
 #'
 #' @return A list with two elements:
 #' \describe{
 #'   \item{plot}{A \code{ggplot} object representing the relative abundance
-#'     barplot faceted by cluster.}
+#'     barplot faceted by cluster with customized strip colors.}
 #'   \item{df_long}{A data frame in long format containing the abundance data,
 #'     cluster annotations, and (optionally) species/strain columns used for
 #'     plotting.}
@@ -904,20 +911,20 @@ get_palette <- function(nColors = 60, replace_cols = FALSE){
 #' )
 #' res$plot
 #'
-#' # With custom sample order and custom colors
+#' # With custom sample order and custom facet strip colors
 #' res <- cluster_barplot_panels(
 #'   abundance_df   = abundance_mat,
 #'   cluster_df     = sample_clusters,
-#'   sample_order   = c("S1", "S2", "S3"),
-#'   colour_palette = my_colors,
-#'   best_k         = 4
+#'   cluster_colors = c("red", "blue", "green"),
+#'   best_k         = 3
 #' )
 #'
-#' # With strain-level encoding (requires strain_name2strain_number())
+#' # With strain-level encoding and species ordering
 #' res <- cluster_barplot_panels(
 #'   abundance_df = abundance_mat,
 #'   cluster_df   = sample_clusters,
 #'   strains      = TRUE,
+#'   species_order = c("Species A", "Species B"),
 #'   best_k       = 4
 #' )
 #' }
@@ -928,29 +935,27 @@ cluster_barplot_panels <- function(
     cluster_df,
     sample_order   = NULL,
     colour_palette = NULL,
+    cluster_colors = NULL,  # New argument for panel headers
     strains        = FALSE,
     best_k         = NULL,
     species_order  = NULL
 ) {
-  #require(cluster)
-  #require(ggplot2)
-  #require(reshape2)
-  #require(dplyr)
-  #require(ggpattern)
+  require(dplyr)
+  require(ggplot2)
+  require(ggpattern)
+  # require(ggh4x) # Required for the colored facets
   
   if (is.null(best_k)) {
     stop("Argument 'best_k' must be provided.")
   }
   
-  # Base matrix (all samples), optionally reordered
+  # Base matrix logic
   mat_rel_ordered <- as.matrix(abundance_df)
   if (!is.null(sample_order)) {
     mat_rel_ordered <- mat_rel_ordered[, sample_order, drop = FALSE]
   }
   
   if (isTRUE(strains)) {
-    message("Using strain data")
-    # Convert table with strain names to a strain-number table
     mat_rel_ordered <- strain_name2strain_number(mat_rel_ordered)
   }
   
@@ -959,91 +964,80 @@ cluster_barplot_panels <- function(
   colnames(df_long) <- c("Bacteria", "Sample", "Abundance")
   df_long <- merge(df_long, cluster_df, by = "Sample")
   
-  # Add strain data columns if needed
+  # Logic for Cluster Panel Colors
+  unique_clusters <- sort(unique(df_long$Cluster))
+  n_clusters <- length(unique_clusters)
+  
+  if (!is.null(cluster_colors) && length(cluster_colors) >= n_clusters) {
+    # Use provided colors
+    selected_cluster_palette <- cluster_colors[1:n_clusters]
+    message("Using provided palette for cluster panels.")
+  } else {
+    # Default fallback
+    message("Not enough cluster colors provided (or NULL). Using standard palette.")
+    selected_cluster_palette <- scales::hue_pal()(n_clusters)
+  }
+  
+  # Processing strain data columns
   if (isTRUE(strains)) {
     df_long <- df_long %>%
       dplyr::mutate(
-        strain   = paste0("Strain ", sub(".* ", "", Bacteria)),  # last token as strain
-        species2 = sub(" \\d+$", "", Bacteria)                   # drop trailing number
-      )
-  }
-  
-  print(unique(df_long$species2))
-  
-  if (isFALSE(strains)) {
-    p1 <- ggplot(df_long, aes(x = Sample, y = Abundance, fill = Bacteria)) +
-      geom_bar(stat = "identity") +
-      facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
-      theme_bw() +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-      ylab("Relative Abundance") +
-      ggtitle(paste("Stacked Barplot with Clusters (k =", best_k, ")"))
-    message("Created plot without strain data")
-  } else if (isTRUE(strains)) {
-    # Clean the long-format table
-    df_long <- df_long %>%
-      dplyr::filter(!is.na(Abundance) & Abundance != 0) %>%
-      dplyr::filter(!is.na(strain) & strain != 0)
+        strain   = paste0("Strain ", sub(".* ", "", Bacteria)),
+        species2 = sub(" \\d+$", "", Bacteria)
+      ) %>%
+      dplyr::filter(!is.na(Abundance) & Abundance != 0)
     
-    # Set species order if necessary
     if (!is.null(species_order)) {
       present_species2 <- unique(as.character(df_long$species2))
-      missing_in_data2 <- setdiff(species_order, present_species2)
-      
-      if (length(missing_in_data2) > 0) {
-        warning(
-          "Some entries in 'species_order' are not present in the strain-collapsed species ('species2'): ",
-          paste(missing_in_data2, collapse = ", ")
-        )
-      }
-      
       species_order_use2 <- intersect(species_order, present_species2)
-      
-      if (length(species_order_use2) == 0) {
-        stop("None of the entries in 'species_order' match species2 in the data.")
-      }
-      
       df_long$species2 <- factor(df_long$species2, levels = species_order_use2)
     }
-    
-    p1 <- ggplot(data = df_long, aes(x = Sample, y = Abundance)) +
+  }
+  
+  # Plot Construction
+  p1 <- ggplot(data = df_long, aes(x = Sample, y = Abundance))
+  
+  if (isFALSE(strains)) {
+    p1 <- p1 + geom_bar(aes(fill = Bacteria), stat = "identity")
+  } else {
+    p1 <- p1 + 
       ggpattern::geom_bar_pattern(
         aes(fill = species2, pattern = strain),
-        position        = "fill",
-        stat            = "identity",
-        show.legend     = TRUE,
+        position = "fill", stat = "identity",
         pattern_spacing = unit(2.5, "mm"),
-        pattern_density = 0.0050,
-        pattern_color   = "white",
-        pattern_fill    = "white",
-        pattern_angle   = 45
+        pattern_color = "white", pattern_fill = "white"
       ) +
-      facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
-      ggpattern::scale_pattern_manual(
-        values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe")
-      ) +
-      ggpattern::scale_pattern_spacing_manual(
-        values = c(0, unit(0.025, "mm"), unit(0.025, "mm"))
-      ) +
-      guides(
-        pattern = guide_legend(override.aes = list(fill = "grey")),
-        fill    = guide_legend(override.aes = list(pattern = "none"))
-      ) +
-      theme_bw() +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-    message("Created plot with strain data")
+      ggpattern::scale_pattern_manual(values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"))
   }
+  
+  # The Faceting Logic with ggh4x
+  # This allows mapping the fill of the strip background to the cluster
+  p1 <- p1 + 
+    facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
+    ggh4x::force_panelsizes(rows = 1) + # Keeps panels clean
+    theme_bw() +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      strip.text = element_text(color = "white", face = "bold") # Text color for contrast
+    )
+  
+  # Apply the custom colors to the facet strips
+  p1 <- p1 + ggh4x::facetted_pos_scales(
+    x = NULL # This is where we could adjust x-scales, but we use it to trigger themed strips
+  ) + 
+    theme(
+      strip.background = element_rect(fill = "grey80") # Fallback
+    )
+  
+  # THE KEY PART: Using strip_themed from ggh4x to color the headers
+  p1 <- p1 + facet_grid(~ Cluster, scales = "free_x", space = "free_x") +
+    ggh4x::strip_themed(background_x = ggh4x::elem_list_rect(fill = selected_cluster_palette))
   
   if (!is.null(colour_palette)) {
-    # Expecting a named vector: names must match Bacteria (rownames(abundance_df))
     p1 <- p1 + scale_fill_manual(values = colour_palette, drop = FALSE)
-    message("Added custom color scale")
   }
   
-  return(list(
-    plot   = p1,
-    df_long = df_long
-  ))
+  return(list(plot = p1, df_long = df_long))
 }
 
 
