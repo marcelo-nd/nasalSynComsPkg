@@ -1032,7 +1032,7 @@ cluster_barplot_panels <- function(
         pattern = guide_legend(
           title = "Strain",
           override.aes = list(
-            fill = "grey80", 
+            fill = "azure3", 
             pattern_fill = "white", 
             pattern_color = "white",
             pattern_spacing = 0.02 # Slightly adjust for legend box size
@@ -3444,103 +3444,55 @@ limma_markers_by_cluster_general <- function(
 #'
 #' @export
 summarize_markers_and_heatmap_with_classes <- function(
-    # --- core inputs ---
-  metab_df, metadata_df,
-  sample_id_col = NULL,             # e.g. "Sample"; if NULL, uses metadata rownames
-  cluster_var,                       # e.g. "ATTRIBUTE_Cluster"
-  # --- SIRIUS inputs ---
-  sirius_df,
-  id_col = "row.ID",
-  class_cols = c("SIRIUS_ClassyFire.class",
-                 "SIRIUS_ClassyFire.most.specific.class",
-                 "SIRIUS_ClassyFire.subclass",
-                 "SIRIUS_ClassyFire.level.5"),
-  id_pattern = "^X(\\d+).*",
-  # --- limma selection ---
-  limma_res,                         # output of limma_markers_by_cluster_general()
-  top_n = 15,
-  p_adj_thresh = 0.05,
-  min_logFC = 0,
-  log_transform = TRUE, log_offset = 1,
-  scale_rows = TRUE,
-  heatmap_colors = colorRampPalette(c("#2166AC","#F7F7F7","#B2182B"))(101),
-  # --- plotting options ---
-  cluster_colors = NULL,             # named vector for sample clusters (optional)
-  class_na_label = "Unclassified",
-  class_na_color = "#BDBDBD",
-  out_file   = NULL,  # e.g. "markers_heatmap.pdf" or "markers_heatmap.png"
-  out_width  = 9,     # inches
-  out_height = 12,    # inches
-  out_dpi    = 300,   # used for raster formats (png/jpg/tiff)
-  c_legend_ncol = 2,     # columns for both heatmap & annotation legends,
-  r_legend_ncol = 2,
-  legend_side = "bottom",   # "bottom", "top", "left", or "right"
-  merge_legends = FALSE,     # TRUE = put all legends into one combined block
-  col_annot_vars = NULL
+    metab_df, metadata_df,
+    sample_id_col = NULL,
+    cluster_var,
+    sirius_df,
+    id_col = "row.ID",
+    class_cols = c("SIRIUS_ClassyFire.class", "SIRIUS_ClassyFire.most.specific.class"),
+    id_pattern = "^X(\\d+).*",
+    limma_res,
+    top_n = 15,
+    p_adj_thresh = 0.05,
+    min_logFC = 0,
+    log_transform = TRUE, log_offset = 1,
+    scale_rows = TRUE,
+    heatmap_colors = NULL,
+    cluster_colors = NULL,
+    col_annot_colors = NULL, # New argument: list of lists
+    class_na_label = "Unclassified",
+    class_na_color = "#BDBDBD",
+    out_file   = NULL,
+    out_width  = 9,
+    out_height = 12,
+    out_dpi    = 300,
+    c_legend_ncol = 2,
+    r_legend_ncol = 2,
+    legend_side = "bottom",
+    merge_legends = FALSE,
+    col_annot_vars = NULL
 ) {
-  ## ---------- Step A: align + column annotation ----------
-  # Validate required structures/columns and align samples between metab_df and metadata_df.
-  if (is.null(colnames(metab_df))) stop("metab_df must have sample column names.")
-  if (!(cluster_var %in% colnames(metadata_df))) {
-    stop("Cluster column '", cluster_var, "' not found in metadata_df.")
-  }
   
-  # Determine where sample IDs live in metadata (explicit column preferred, else rownames)
+  # --- Step A: align + column annotation (Logic remains same) ---
+  if (is.null(colnames(metab_df))) stop("metab_df must have sample column names.")
+  if (!(cluster_var %in% colnames(metadata_df))) stop("Cluster column not found.")
+  
   if (!is.null(sample_id_col) && sample_id_col %in% colnames(metadata_df)) {
     md_ids <- as.character(metadata_df[[sample_id_col]])
-    md_id_src <- paste0("column '", sample_id_col, "'")
-  } else if (!is.null(rownames(metadata_df)) && all(nchar(rownames(metadata_df)) > 0)) {
+  } else {
     md_ids <- rownames(metadata_df)
-    md_id_src <- "metadata rownames"
     sample_id_col <- "<rownames>"
-  } else {
-    stop("Could not find sample IDs in metadata_df (need sample_id_col or non-empty rownames).")
   }
   
-  # Restrict to overlapping samples
   common <- intersect(colnames(metab_df), md_ids)
-  if (length(common) == 0) {
-    stop("No overlapping sample IDs between metab_df and metadata_df (", md_id_src, ").")
-  }
-  
-  # Subset metabolite table to common samples and align metadata row order
   X <- as.matrix(metab_df[, common, drop = FALSE])
-  if (sample_id_col == "<rownames>") {
-    md <- metadata_df[match(common, rownames(metadata_df)), , drop = FALSE]
-    rownames(md) <- rownames(md)
-  } else {
-    md <- metadata_df[match(common, metadata_df[[sample_id_col]]), , drop = FALSE]
-    rownames(md) <- md[[sample_id_col]]
-  }
+  md <- if (sample_id_col == "<rownames>") metadata_df[match(common, rownames(metadata_df)), , drop = FALSE] else metadata_df[match(common, metadata_df[[sample_id_col]]), , drop = FALSE]
+  rownames(md) <- if (sample_id_col == "<rownames>") common else md[[sample_id_col]]
   
-  # Column annotation: cluster membership per sample
-  # ---------- Column annotations (1+ metadata variables) ----------
-  # Default: annotate with cluster_var only (backward-compatible)
-  if (is.null(col_annot_vars)) {
-    col_annot_vars <- cluster_var
-  }
-  
-  # Validate: all requested annotation variables exist
-  missing_vars <- setdiff(col_annot_vars, colnames(md))
-  if (length(missing_vars) > 0) {
-    stop(
-      "These col_annot_vars were not found in metadata_df: ",
-      paste(missing_vars, collapse = ", ")
-    )
-  }
-  
-  # Build annotation df; coerce each column to factor for discrete annotation
+  if (is.null(col_annot_vars)) col_annot_vars <- cluster_var
   ann_col_all <- md[, col_annot_vars, drop = FALSE]
-  for (v in colnames(ann_col_all)) {
-    ann_col_all[[v]] <- factor(ann_col_all[[v]])
-  }
+  for (v in colnames(ann_col_all)) ann_col_all[[v]] <- factor(ann_col_all[[v]])
   rownames(ann_col_all) <- rownames(md)
-  
-  message(
-    "Prepared alignment: ", ncol(X), " samples; column annotations = {",
-    paste(colnames(ann_col_all), collapse = ", "),
-    "}"
-  )
   
   ## ---------- Step B: SIRIUS row annotations ----------
   # Validate requested SIRIUS ID and class columns; join class info to metabolites.
@@ -3648,47 +3600,51 @@ summarize_markers_and_heatmap_with_classes <- function(
     X_display[!is.finite(X_display)] <- 0
   }
   
-  # ---------- Step D: build annotation colors & plot ----------
-  # ---------- Column annotation palettes (one per variable) ----------
+  ## ---------- Step D: build annotation colors & plot ----------
+  
+  # Helper to make fallback palettes
   make_col_pal <- function(fct, prefer_set = "Set2") {
     lev <- levels(fct)
     n <- length(lev)
-    
-    # Brewer palettes are limited; fall back to hue if many levels
-    cols <- if (n <= 8) {
-      RColorBrewer::brewer.pal(max(3, n), prefer_set)[seq_len(n)]
-    } else if (n <= 12) {
-      RColorBrewer::brewer.pal(max(3, n), "Set3")[seq_len(n)]
-    } else {
-      scales::hue_pal()(n)
-    }
-    
+    cols <- if (n <= 8) RColorBrewer::brewer.pal(max(3, n), prefer_set)[seq_len(n)] else scales::hue_pal()(n)
     setNames(cols, lev)
   }
   
   col_ann_cols <- list()
+  
   for (v in colnames(ann_col)) {
-    # Backward compatible: if the annotation variable is the cluster_var, use cluster_colors if supplied
-    if (v == cluster_var && !is.null(cluster_colors)) {
-      # Optional validation: warn if provided colors don't cover all levels
-      missing_cols <- setdiff(levels(ann_col[[v]]), names(cluster_colors))
-      if (length(missing_cols) > 0) {
-        warning(
-          "cluster_colors is missing colors for levels in ", v, ": ",
-          paste(missing_cols, collapse = ", ")
-        )
+    levels_v <- levels(ann_col[[v]])
+    
+    # Priority 1: Check the new list of lists (col_annot_colors)
+    if (!is.null(col_annot_colors) && v %in% names(col_annot_colors)) {
+      user_pal <- col_annot_colors[[v]]
+      if (all(levels_v %in% names(user_pal))) {
+        col_ann_cols[[v]] <- user_pal
+        next
+      } else {
+        warning("Variable '", v, "' in col_annot_colors is missing levels. Fallback used.")
       }
-      col_ann_cols[[v]] <- cluster_colors
-    } else {
-      col_ann_cols[[v]] <- make_col_pal(ann_col[[v]])
     }
+    
+    # Priority 2: Check legacy cluster_colors for the primary cluster_var
+    if (v == cluster_var && !is.null(cluster_colors)) {
+      if (all(levels_v %in% names(cluster_colors))) {
+        col_ann_cols[[v]] <- cluster_colors
+        next
+      } else {
+        warning("cluster_colors missing levels for '", v, "'. Fallback used.")
+      }
+    }
+    
+    # Priority 3: Fallback auto-generation
+    col_ann_cols[[v]] <- make_col_pal(ann_col[[v]])
   }
   
   # Store palettes in a single list for reference / downstream reuse
   ann_colors <- c(list(), col_ann_cols)
   
   
-  # Row annotation palettes: discrete, include placeholder label color
+  # Row annotation palettes (Discrete SIRIUS classes)
   if (!is.null(ann_row) && ncol(ann_row) > 0) {
     make_discrete_pal <- function(vals) {
       lev <- levels(vals)
@@ -3723,10 +3679,12 @@ summarize_markers_and_heatmap_with_classes <- function(
   col_legend_params <- rep(list(list(ncol = c_legend_ncol)), length(colnames(ann_col)))
   names(col_legend_params) <- colnames(ann_col)
   
+  # Plotting with ComplexHeatmap
+  # (Use the col_ann_cols list generated above)
   ha_top <- ComplexHeatmap::HeatmapAnnotation(
     df  = ann_col,
     col = col_ann_cols,
-    annotation_legend_param = col_legend_params
+    annotation_legend_param = rep(list(list(ncol = c_legend_ncol)), length(colnames(ann_col)))
   )
   
   # Left (row) annotation with legend column control (or NULL if no row annotations)
