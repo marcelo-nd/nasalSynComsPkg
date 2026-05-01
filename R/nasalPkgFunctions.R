@@ -1059,8 +1059,9 @@ cluster_barplot_panels <- function(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
       strip.text  = element_text(color = strip_color, face = "bold"),
       panel.spacing = unit(0.1, "lines")
-    ) +
-    labs(y = "Relative Abundance", title = paste("Nasal SynCom Clusters (k =", best_k, ")"))
+    )
+#    ) +
+#    labs(y = "Relative Abundance", title = paste("Nasal SynCom Clusters (k =", best_k, ")"))
   
   # 7. Apply Manual Fill Colors if provided
   if (!is.null(colour_palette)) {
