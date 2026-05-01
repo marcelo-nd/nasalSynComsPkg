@@ -938,7 +938,8 @@ cluster_barplot_panels <- function(
     cluster_colors = NULL, # Colors for the facet headers
     strains        = FALSE,
     best_k         = NULL,
-    species_order  = NULL
+    species_order  = NULL,
+    strip_color = "black"
 ) {
   # Load necessary libraries (or use namespace calls)
   # require(dplyr); require(ggplot2); require(ggpattern); require(ggh4x); require(reshape2)
@@ -1056,7 +1057,7 @@ cluster_barplot_panels <- function(
     theme_bw() +
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-      strip.text  = element_text(color = "black", face = "bold"),
+      strip.text  = element_text(color = strip_color, face = "bold"),
       panel.spacing = unit(0.1, "lines")
     ) +
     labs(y = "Relative Abundance", title = paste("Nasal SynCom Clusters (k =", best_k, ")"))
