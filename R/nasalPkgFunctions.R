@@ -857,8 +857,8 @@ get_palette <- function(nColors = 60, replace_cols = FALSE){
 #'   fill taxa. Names must match the \code{Bacteria} values (i.e., row names of
 #'   \code{abundance_df}). If \code{NULL}, ggplot2's default color palette is
 #'   used.
-#' @param cluster_colors Optional character vector of colors used to fill the 
-#'   background of the cluster facet strips (headers). If the number of colors 
+#' @param cluster_colors Optional character vector of colors used to fill the
+#'   background of the cluster facet strips (headers). If the number of colors
 #'   provided is less than the number of clusters, a default palette is used.
 #' @param strains Logical. If \code{TRUE}, the function assumes that
 #'   \code{Bacteria} names encode strain information in the last numeric token
@@ -867,7 +867,7 @@ get_palette <- function(nColors = 60, replace_cols = FALSE){
 #' @param best_k Integer or character. The number of clusters (k) to display in
 #'   the plot title. This argument must be provided; otherwise, the function
 #'   will stop with an error.
-#' @param species_order Optional character vector specifying the levels and 
+#' @param species_order Optional character vector specifying the levels and
 #'   order of species for the fill legend when \code{strains = TRUE}.
 #'
 #' @details
@@ -883,7 +883,7 @@ get_palette <- function(nColors = 60, replace_cols = FALSE){
 #'     taxa relative abundances per sample, faceted by cluster.
 #'   \item When \code{strains = TRUE}, uses \pkg{ggpattern} to encode species
 #'     as fill colors and strains as patterns within each stacked bar.
-#'   \item Uses \pkg{ggh4x} to programmatically color the background of 
+#'   \item Uses \pkg{ggh4x} to programmatically color the background of
 #'     facet strips based on the \code{cluster_colors} argument.
 #' }
 #'
@@ -943,11 +943,11 @@ cluster_barplot_panels <- function(
 ) {
   # Load necessary libraries (or use namespace calls)
   # require(dplyr); require(ggplot2); require(ggpattern); require(ggh4x); require(reshape2)
-  
+
   if (is.null(best_k)) {
     stop("Argument 'best_k' must be provided.")
   }
-  
+
   # 1. Prepare the abundance matrix
   mat_rel_ordered <- as.matrix(abundance_df)
   if (!is.null(sample_order)) {
@@ -955,22 +955,22 @@ cluster_barplot_panels <- function(
     valid_order <- sample_order[sample_order %in% colnames(mat_rel_ordered)]
     mat_rel_ordered <- mat_rel_ordered[, valid_order, drop = FALSE]
   }
-  
+
   # Handle strain renaming if the helper function exists
   if (isTRUE(strains) && exists("strain_name2strain_number")) {
     message("Using strain data: Converting names to numbers...")
     mat_rel_ordered <- strain_name2strain_number(mat_rel_ordered)
   }
-  
+
   # 2. Melt and Merge
   df_long <- reshape2::melt(mat_rel_ordered)
   colnames(df_long) <- c("Bacteria", "Sample", "Abundance")
   df_long <- merge(df_long, cluster_df, by = "Sample")
-  
+
   # 3. Determine Panel (Cluster) Colors
   unique_clusters <- sort(unique(df_long$Cluster))
   n_clusters <- length(unique_clusters)
-  
+
   if (!is.null(cluster_colors) && length(cluster_colors) >= n_clusters) {
     selected_cluster_palette <- cluster_colors[1:n_clusters]
     message("Using provided palette for cluster panels.")
@@ -978,7 +978,7 @@ cluster_barplot_panels <- function(
     message("Not enough cluster colors provided. Using default palette.")
     selected_cluster_palette <- scales::hue_pal()(n_clusters)
   }
-  
+
   # 4. Process Strain/Species metadata
   if (isTRUE(strains)) {
     df_long <- df_long %>%
@@ -991,34 +991,34 @@ cluster_barplot_panels <- function(
       ) %>%
       # Filter out zeros to keep the plot clean, but keep NA-checks safe
       dplyr::filter(!is.na(Abundance) & Abundance > 0)
-    
+
     # Handle Species Ordering
     if (!is.null(species_order)) {
       present_species2 <- unique(as.character(df_long$species2))
       species_order_use2 <- intersect(species_order, present_species2)
       df_long$species2 <- factor(df_long$species2, levels = species_order_use2)
     }
-    
+
     # Ensure strain is a factor for consistent pattern mapping
     df_long$strain <- factor(df_long$strain, levels = c("Strain 1", "Strain 2", "Strain 3"))
   }
-  
+
   # 5. Build the Plot
   p1 <- ggplot(data = df_long, aes(x = Sample, y = Abundance))
-  
+
   if (isFALSE(strains)) {
     # Standard Barplot
     p1 <- p1 + geom_bar(aes(fill = Bacteria), stat = "identity", position = "stack")
   } else {
     # Patterned Barplot
-    p1 <- p1 + 
+    p1 <- p1 +
       ggpattern::geom_bar_pattern(
         aes(fill = species2, pattern = strain),
-        position        = "fill", 
+        position        = "fill",
         stat            = "identity",
         pattern_spacing = unit(2.5, "mm"), # Large enough to see in the plot
         pattern_density = 0.05,
-        pattern_color   = "white", 
+        pattern_color   = "white",
         pattern_fill    = "white",
         pattern_angle   = 45
       ) +
@@ -1033,8 +1033,8 @@ cluster_barplot_panels <- function(
         pattern = guide_legend(
           title = "Strain",
           override.aes = list(
-            fill = "azure3", 
-            pattern_fill = "white", 
+            fill = "azure3",
+            pattern_fill = "white",
             pattern_color = "white",
             pattern_spacing = 0.02 # Slightly adjust for legend box size
           )
@@ -1045,11 +1045,11 @@ cluster_barplot_panels <- function(
         )
       )
   }
-  
+
   # 6. Apply Faceting and Themed Strips (Headers)
-  p1 <- p1 + 
-    ggh4x::facet_grid2(~ Cluster, 
-                       scales = "free_x", 
+  p1 <- p1 +
+    ggh4x::facet_grid2(~ Cluster,
+                       scales = "free_x",
                        space = "free_x",
                        strip = ggh4x::strip_themed(
                          background_x = ggh4x::elem_list_rect(fill = selected_cluster_palette)
@@ -1062,12 +1062,12 @@ cluster_barplot_panels <- function(
     )
 #    ) +
 #    labs(y = "Relative Abundance", title = paste("Nasal SynCom Clusters (k =", best_k, ")"))
-  
+
   # 7. Apply Manual Fill Colors if provided
   if (!is.null(colour_palette)) {
     p1 <- p1 + scale_fill_manual(values = colour_palette, drop = FALSE)
   }
-  
+
   return(list(plot = p1, df_long = df_long))
 }
 
@@ -1359,291 +1359,157 @@ order_samples_by_clustering <- function(feature_table){
   return(ordered_samples_cluster)
 }
 
-#' Create a Grid of Relative Abundance Barplots Across Experiments
+
+#' Create a Multi-Row Grid of Relative Abundance Barplots with Metadata Strips
 #'
 #' Builds a faceted grid of stacked relative abundance barplots from multiple
-#' feature tables (e.g., OTU/ASV count tables or relative abundance tables),
-#' typically corresponding to different experiments or treatments.
+#' feature tables. This version supports multi-row layouts, strain-level
+#' patterning, and an integrated metadata strip (e.g., community clusters)
+#' placed below the x-axis.
 #'
-#' Each feature table is reshaped to long format, combined into a single data
-#' frame, and plotted as stacked bars either:
-#' \itemize{
-#'   \item per sample, faceted by experiment (default), or
-#'   \item per experiment, faceted by sample (when \code{shared_samples = TRUE}).
-#' }
-#'
-#' Optionally, strain-level information can be encoded using patterns
-#' (\pkg{ggpattern}) while species are encoded by fill color.
-#'
-#' @param feature_tables A list of numeric matrices or data frames, where rows
-#'   represent features (e.g., taxa/strains) and columns represent samples. Each
-#'   element of the list corresponds to one experiment or condition.
-#' @param experiments_names Character vector of the same length as
-#'   \code{feature_tables}, giving the experiment/treatment name for each
-#'   feature table. These names are used to annotate and facet the plots.
-#' @param shared_samples Logical. If \code{TRUE}, assumes that the same samples
-#'   are shared across experiments and plots \code{experiment} on the x-axis
-#'   with \code{sample} as facets. If \code{FALSE} (default), plots
-#'   \code{sample} on the x-axis and facets by \code{experiment}.
-#' @param strains Logical. If \code{TRUE}, treats row names of each feature
-#'   table as strain-level identifiers of the form
-#'   \code{"Genus species strainID"} and uses \code{\link{strain_name2strain_number}}
-#'   and pattern aesthetics (\pkg{ggpattern}) to represent strains. Default
-#'   is \code{FALSE}.
-#' @param plot_title Character string. Overall title for the plot. Default is
-#'   an empty string.
-#' @param plot_title_size Numeric. Text size for the plot title. Default is
-#'   \code{14}.
-#' @param x_axis_text_size Numeric. Text size for x-axis tick labels. Default
-#'   is \code{12}.
-#' @param x_axis_title_size Numeric. Text size for the x-axis title. Default
-#'   is \code{12}.
-#' @param x_axis_text_angle Numeric. Rotation angle (in degrees) for x-axis
-#'   tick labels. Default is \code{0}.
-#' @param y_axis_title_size Numeric. Text size for the y-axis title. Default
-#'   is \code{12}.
-#' @param y_axis_text_size Numeric. Text size for y-axis tick labels. Default
-#'   is \code{12}.
-#' @param y_axis_text_angle Numeric. Rotation angle (in degrees) for y-axis
-#'   tick labels. Default is \code{0}.
-#' @param legend_pos Character string specifying the legend position (e.g.,
-#'   \code{"right"}, \code{"bottom"}, \code{"none"}). Passed to
-#'   \code{theme(legend.position = ...)}. Default is \code{"right"}.
-#' @param legend_title_size Numeric. Text size for legend title. Default is
-#'   \code{12}.
-#' @param legend_text_size Numeric. Text size for legend text. Default is
-#'   \code{12}.
-#' @param legend_cols Integer. Number of columns in the legend for the
-#'   \code{fill} aesthetic. Default is \code{3}.
-#' @param legend_key_size Numeric. Size (in cm) of the legend key boxes.
-#'   Default is \code{1}.
-#' @param colour_palette Optional named character vector of colors used for
-#'   species (or species groups). Names should match the values in
-#'   \code{species} (or \code{species2} when \code{strains = TRUE}). If
-#'   \code{NULL}, a palette is generated by \code{\link{get_palette}}.
+#' @param feature_tables A list of numeric matrices or data frames (features as rows,
+#'   samples as columns). Each list element corresponds to one experiment.
+#' @param experiments_names Character vector of the same length as \code{feature_tables}
+#'   used for facet labeling and metadata joining.
+#' @param shared_samples Logical. If \code{TRUE}, facets by sample. If \code{FALSE}
+#'   (default), facets by experiment.
+#' @param strains Logical. If \code{TRUE}, uses \pkg{ggpattern} to encode strains
+#'   (Strain 1: none; Strain 2: circle; Strain 3: stripe). Default is \code{FALSE}.
+#' @param colour_palette Named character vector of colors for species.
+#' @param species_order Character vector defining the factor levels (and stack order)
+#'   of the species.
+#' @param metadata_df Data frame containing metadata (e.g., clusters) to be plotted
+#'   as a strip below the bars. Must contain a column "Sample" matching
+#'   \code{experiments_names}.
+#' @param metadata_col Character. The column name in \code{metadata_df} to plot
+#'   in the strip. Default is \code{"Cluster"}.
+#' @param metadata_colors Named character vector for the metadata strip fill.
+#' @param n_rows Integer. Number of rows in the \code{facet_wrap} layout. Default is \code{1}.
+#' @param legend_cols Integer. Number of columns in the legend. Default is \code{3}.
+#' @param legend_pos Character string for legend position. Default is \code{"bottom"}.
+#' @param legend_key_size Numeric. Size of the legend keys in cm. Default is \code{0.5}.
+#' @param ... Additional arguments passed to methods.
 #'
 #' @details
-#' For each feature table, the function:
+#' This function integrates several advanced \pkg{ggplot2} extensions:
 #' \itemize{
-#'   \item Optionally renames strain-level rows using
-#'         \code{\link{strain_name2strain_number}} when \code{strains = TRUE}.
-#'   \item Filters out features with all-zero counts using
-#'         \code{\link{filter_features_by_col_counts}}.
-#'   \item Drops samples (columns) that contain only zeros.
-#'   \item Converts row names to a \code{species} column and reshapes the table
-#'         to long format using \pkg{tidyr::gather}.
-#'   \item Adds an \code{experiment} column from \code{experiments_names}.
+#'   \item \pkg{ggpattern}: Provides pattern fills to distinguish strains within a species
+#'     without requiring a massive color palette.
+#'   \item \pkg{ggnewscale}: Used to add a second fill scale for the metadata strip,
+#'     allowing the bars and the strip to have independent legends.
 #' }
 #'
-#' When \code{strains = TRUE}, additional columns \code{strain} and
-#' \code{species2} are created:
-#' \itemize{
-#'   \item \code{strain}: a label like \code{"Strain 1"}, \code{"Strain 2"}, etc.
-#'   \item \code{species2}: the species name without the trailing numeric ID.
-#' }
+#' @note Requires the following packages: \code{tidyverse}, \code{ggpattern},
+#'   \code{ggnewscale}.
 #'
-#' The final combined long data frame is filtered to remove zero abundances,
-#' converted to factors with \code{experiment} levels matching
-#' \code{experiments_names}, and plotted using \pkg{ggplot2}:
-#' \itemize{
-#'   \item If \code{shared_samples = FALSE}, x-axis = \code{sample}, faceted
-#'         by \code{experiment}.
-#'   \item If \code{shared_samples = TRUE}, x-axis = \code{experiment}, faceted
-#'         by \code{sample}.
-#'   \item For \code{strains = TRUE}, \pkg{ggpattern} is used to distinguish
-#'         strains by patterns while species are distinguished by fill colors.
-#'   \item For \code{strains = FALSE}, a standard stacked barplot is created
-#'         with \code{species} as fill.
-#' }
-#'
-#' Relative abundances are shown as fractions of 1 via
-#' \code{position = "fill"}.
-#'
-#' @return A \code{ggplot} object representing the faceted grid of barplots.
-#'
-#' @examples
-#' \dontrun{
-#' p <- barplots_grid(
-#'   feature_tables   = list(exp1_abund, exp2_abund),
-#'   experiments_names = c("Experiment 1", "Experiment 2"),
-#'   shared_samples   = FALSE,
-#'   strains          = FALSE,
-#'   plot_title       = "Relative abundance across experiments"
-#' )
-#' p
-#' }
+#' @return A \code{ggplot} object.
 #'
 #' @export
-barplots_grid <- function(feature_tables, experiments_names, shared_samples = FALSE, strains = FALSE, plot_title = "",
-                          plot_title_size = 14, x_axis_text_size = 12, x_axis_title_size = 12, x_axis_text_angle = 0,
-                          y_axis_title_size = 12, y_axis_text_size = 12, y_axis_text_angle = 0,
-                          legend_pos = "right", legend_title_size = 12, legend_text_size = 12, legend_cols = 3, legend_key_size = 1,
-                          colour_palette = NULL,
-                          species_order  = NULL){
-  # Creates a grid of Barplots
-  
-  ### Step 1. Clean, join and gather the otu tables.
-  sample_names = c() # to keep track of the sample names
-  for (table in seq(from = 1, to = length(feature_tables), by=1)) { # iterate over all the feature tables
-    # copy current feature table to avoid modifying the original table.
-    feature_table <- feature_tables[[table]]
-    
-    #print(head(feature_table)) # check the working feature table
-    
-    if (isTRUE(strains)) {
-      # Convert table with strain names to a strain-number table
-      feature_table <- strain_name2strain_number(feature_table)
-    }
-    
-    # Remove rows with Zero counts
-    feature_table <- filter_features_by_col_counts(feature_table, min_count = 1, col_number = 1)
-    
-    #print(head(feature_table))
-    
-    # save names of species
-    species_names <- row.names(feature_table)
-    
-    # Remove columns (samples) with zero count
-    if (ncol(feature_table) > 1) {
-      feature_table <- feature_table[, colSums(feature_table != 0) > 0]
-    }
-    
-    sample_names <- c(sample_names, colnames(feature_table))
-    
-    #print(head(feature_table2))
-    
-    # Create a column with the names of ASVs/OTUs using rownames.
-    feature_table["species"] <- species_names
-    #print(feature_table2$species)
-    
-    # Use dplyr gather the working feature table.
-    feature_table_g <- tidyr::gather(feature_table, 1:(ncol(feature_table) - 1) , key = "sample", value = "abundance")
-    
-    #print(experiments_names[table]) # check experiment name that corresponds to working feature table.
-    
-    # Create a column to keep track of from which experiment/treatment the samples come from.
-    feature_table_g$experiment <- experiments_names[table] # the experiment name is taken from experiments_names vector
-    
-    #print(head(feature_table_g))
-    
-    # rbind the gathered feature tables.
-    # Result is exp_plot_table, a table containing in each row species;sample;abundance;experiment data for all tables to make a barplot.
-    if (table == 1) {
-      plot_df <- feature_table_g
-    }else{
-      plot_df <- rbind(plot_df, feature_table_g)
-    }
+barplots_grid <- function(feature_tables, experiments_names, shared_samples = FALSE, strains = FALSE,
+                          colour_palette = NULL, species_order = NULL,
+                          metadata_df = NULL, metadata_col = "Cluster", metadata_colors = NULL,
+                          n_rows = 1, legend_cols = 3, legend_pos = "bottom",
+                          legend_key_size = 0.5, ...){
+
+  # [Steps 1-3: Data consolidation and joining remain the same]
+  plot_df <- data.frame()
+  for (i in seq_along(feature_tables)) {
+    ft <- feature_tables[[i]]
+    if (isTRUE(strains)) { ft <- strain_name2strain_number(ft) }
+    ft <- filter_features_by_col_counts(ft, min_count = 1, col_number = 1)
+    s_names <- row.names(ft)
+    if (ncol(ft) > 1) { ft <- ft[, colSums(ft != 0) > 0, drop = FALSE] }
+    ft["species"] <- s_names
+    ft_g <- tidyr::gather(ft, key = "sample", value = "abundance", -species)
+    ft_g$experiment <- experiments_names[i]
+    plot_df <- rbind(plot_df, ft_g)
   }
-  print(sample_names) # check sample_names
-  print(head(plot_df)) # check gathered table
-  
-  ### Step 2. Convert Strain data to a graphing-compatible format.
-  # Add strain data column to long dataframe
+
   if (isTRUE(strains)) {
     plot_df <- plot_df %>%
-      mutate(
-        strain = paste0("Strain ", sub(".* ", "", species)),  # Extract last number as strain
-        species2 = sub(" \\d+$", "", species)  # Remove strain number from species name
-      )
+      mutate(strain = paste0("Strain ", sub(".* ", "", species)),
+             species2 = sub(" \\d+$", "", species))
+  } else {
+    plot_df <- plot_df %>% mutate(species2 = species)
   }
-  
-  print(head(plot_df))
-  
-  ### Step 3. Clean the long-format table
-  plot_df_filtered <- plot_df %>%
-    filter(!is.na(abundance) & abundance != 0)
-  
-  if (isTRUE(strains)) {
-    plot_df_filtered <- plot_df_filtered %>%
-      filter(!is.na(strain) & strain != 0)
+
+  if (!is.null(metadata_df)) {
+    plot_df <- plot_df %>% left_join(metadata_df, by = c("experiment" = "Sample"))
   }
-  
+
+  plot_df_filtered <- plot_df %>% filter(!is.na(abundance) & abundance > 0)
   plot_df_filtered$experiment <- factor(plot_df_filtered$experiment, levels = experiments_names)
-  
-  ### Step 4. Plotting
-  # get color palette
-  if (is.null(colour_palette)) {
-    colour_palette <- get_palette(nColors = length(unique(plot_df$species)))
-  }
-  
-  #print(plot_df_filtered) # check final table before to plotting
-  
-  #print(unique(plot_df_filtered$species2))
-  
-  # Select species order if necessary
+
   if (!is.null(species_order)) {
-    present_species2 <- unique(as.character(plot_df_filtered$species2))
-    missing_in_data2 <- setdiff(species_order, present_species2)
-    
-    if (length(missing_in_data2) > 0) {
-      warning(
-        "Some entries in 'species_order' are not present in the strain-collapsed species ('species2'): ",
-        paste(missing_in_data2, collapse = ", ")
-      )
-    }
-    
-    species_order_use2 <- intersect(species_order, present_species2)
-    
-    if (length(species_order_use2) == 0) {
-      stop("None of the entries in 'species_order' match species2 in the data.")
-    }
-    
-    plot_df_filtered$species2 <- factor(plot_df_filtered$species2, levels = species_order_use2)
+    plot_df_filtered$species2 <- factor(plot_df_filtered$species2, levels = species_order)
   }
-  
-  
-  # Create base plot.
-  if (shared_samples) {
-    p1 <- ggplot(data = plot_df_filtered, aes(x = experiment, y=abundance)) +
-      facet_grid(~sample)
-  } else{
-    p1 <- ggplot(data = plot_df_filtered, aes(x = sample, y=abundance)) +
-      facet_grid(~experiment, scales = "free", space = "free")
-  }
-  
-  # Add elements based on graph type.
+
+  # --- Step 4: Plotting with Enhanced Patterns ---
+  p1 <- ggplot(data = plot_df_filtered) +
+    facet_wrap(~experiment, nrow = n_rows, scales = "free_x")
+
   if (isTRUE(strains)) {
-    print("strains processing")
-    p1 <- p1 + ggpattern::geom_bar_pattern(aes(fill = species2, pattern = strain, pattern_density = strain),
-                                           position = "fill",
-                                           stat="identity",
-                                           show.legend = TRUE,
-                                           pattern_color = "white",
-                                           pattern_fill = "white",
-                                           pattern_angle = 45,
-                                           pattern_spacing = 0.025) +
-      ggpattern::scale_pattern_manual(values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe")) +
-      ggpattern::scale_pattern_density_manual(values = c(0, 0.2, 0.1)) +
-      guides(pattern = guide_legend(override.aes = list(fill = "black")),
-             fill = guide_legend(override.aes = list(pattern = "none")))
-  } else{
-    print("no strains")
-    p1 <- p1 + geom_bar(aes(fill = species),
-                        position = position_fill(),
-                        stat = "identity")
+    p1 <- p1 + geom_bar_pattern(
+      aes(x = sample, y = abundance, fill = species2, pattern = strain, pattern_density = strain),
+      position = "fill", stat = "identity", color = "black", linewidth = 0.1,
+      # BIGGER & SPACED PATTERNS
+      pattern_color = "white",
+      pattern_fill = "white",
+      pattern_spacing = 0.04, # Increased from 0.02 for more space
+      pattern_size = 0.5,    # Thicker lines/dots
+      pattern_angle = 45
+    ) +
+      scale_pattern_manual(
+        values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"),
+        name = "Strain"
+      ) +
+      scale_pattern_density_manual(
+        values = c("Strain 1" = 0, "Strain 2" = 0.3, "Strain 3" = 0.3), # Higher density looks clearer
+        guide = "none"
+      )
+  } else {
+    p1 <- p1 + geom_bar(aes(x = sample, y = abundance, fill = species2),
+                        position = "fill", stat = "identity", color = "black", linewidth = 0.1)
   }
-  
-  if (!is.null(colour_palette)) {
-    p1 <- p1 + ggplot2::scale_fill_manual(values=colour_palette)
-  } else{
-    print("Colours vec is null, using standard color palette.")
+
+  p1 <- p1 + scale_fill_manual(values = colour_palette, name = "Species")
+
+  if (!is.null(metadata_df)) {
+    p1 <- p1 +
+      new_scale_fill() +
+      geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -0.07, ymax = -0.02, fill = !!sym(metadata_col))) +
+      scale_fill_manual(values = metadata_colors, name = "Cluster")
   }
-  
+
+  # --- Step 6: Fixing the Pattern Legend ---
   p1 <- p1 +
     theme_void() +
-    ggplot2::theme(plot.title = ggplot2::element_text(size = plot_title_size, face = "bold", hjust = 0.5, vjust = 0.5),
-                   axis.title.x = ggplot2::element_text(size=x_axis_title_size),
-                   axis.text.x = ggplot2::element_text(angle = x_axis_text_angle, vjust = 0.5, hjust=1, size = x_axis_text_size),
-                   axis.title.y = ggplot2::element_text(size=y_axis_title_size, angle = 90),
-                   axis.text.y = ggplot2::element_text(size = x_axis_text_size, angle = y_axis_text_angle),
-                   legend.title=ggplot2::element_text(size=legend_title_size),
-                   legend.text=ggplot2::element_text(size=legend_text_size),
-                   legend.position=legend_pos, legend.key.size = unit(legend_key_size, "cm")) +
-    guides(fill = guide_legend(ncol = legend_cols))
-  
-  # Show plot
-  p1
-  
+    theme(
+      axis.title.y = element_text(size = 12, angle = 90),
+      axis.text.y = element_text(size = 10),
+      axis.title.x = element_text(size = 12, margin = margin(t = 10)),
+      axis.text.x = element_text(angle = 90, size = 10, vjust = 0.5, hjust = 1),
+      legend.position = legend_pos,
+      legend.box = "vertical",
+      legend.key.size = unit(legend_key_size, "cm"), # Larger keys help show patterns
+      strip.text = element_text(size = 11, face = "bold", margin = margin(b = 5))
+    ) +
+    guides(
+      fill = guide_legend(
+        ncol = legend_cols,
+        override.aes = list(pattern = "none", pattern_fill = NA, pattern_color = NA)
+      ),
+      pattern = guide_legend(
+        override.aes = list(
+          fill = "white",
+          pattern_spacing = 0.02, # Smaller spacing for the legend key makes patterns repeat correctly
+          pattern_size = 0.3,
+          pattern_density = 0.4
+        )
+      )
+    ) +
+    coord_cartesian(ylim = c(-0.07, 1), clip = "off")
+
   return(p1)
 }
 
@@ -3474,28 +3340,28 @@ summarize_markers_and_heatmap_with_classes <- function(
     merge_legends = FALSE,
     col_annot_vars = NULL
 ) {
-  
+
   # --- Step A: align + column annotation (Logic remains same) ---
   if (is.null(colnames(metab_df))) stop("metab_df must have sample column names.")
   if (!(cluster_var %in% colnames(metadata_df))) stop("Cluster column not found.")
-  
+
   if (!is.null(sample_id_col) && sample_id_col %in% colnames(metadata_df)) {
     md_ids <- as.character(metadata_df[[sample_id_col]])
   } else {
     md_ids <- rownames(metadata_df)
     sample_id_col <- "<rownames>"
   }
-  
+
   common <- intersect(colnames(metab_df), md_ids)
   X <- as.matrix(metab_df[, common, drop = FALSE])
   md <- if (sample_id_col == "<rownames>") metadata_df[match(common, rownames(metadata_df)), , drop = FALSE] else metadata_df[match(common, metadata_df[[sample_id_col]]), , drop = FALSE]
   rownames(md) <- if (sample_id_col == "<rownames>") common else md[[sample_id_col]]
-  
+
   if (is.null(col_annot_vars)) col_annot_vars <- cluster_var
   ann_col_all <- md[, col_annot_vars, drop = FALSE]
   for (v in colnames(ann_col_all)) ann_col_all[[v]] <- factor(ann_col_all[[v]])
   rownames(ann_col_all) <- rownames(md)
-  
+
   ## ---------- Step B: SIRIUS row annotations ----------
   # Validate requested SIRIUS ID and class columns; join class info to metabolites.
   if (!id_col %in% colnames(sirius_df)) {
@@ -3511,19 +3377,19 @@ summarize_markers_and_heatmap_with_classes <- function(
       paste(colnames(sirius_df), collapse = ", ")
     )
   }
-  
+
   metas <- rownames(X)
   if (is.null(metas)) stop("metab_df must have metabolite rownames.")
-  
+
   # Extract IDs from metabolite rownames for joining to sirius_df
   ids_extracted <- sub(id_pattern, "\\1", metas)
-  
+
   # Keep one row per SIRIUS ID and only the requested class columns
   sirius_min <- sirius_df |>
     dplyr::mutate(.id = as.character(.data[[id_col]])) |>
     dplyr::distinct(.id, .keep_all = TRUE) |>
     dplyr::select(.id, dplyr::all_of(class_cols_present))
-  
+
   # Join metabolite->ID mapping to SIRIUS classes
   id_map <- data.frame(Metabolite = metas, .id = ids_extracted, stringsAsFactors = FALSE)
   ann_row_full <- id_map |>
@@ -3532,28 +3398,28 @@ summarize_markers_and_heatmap_with_classes <- function(
   rownames(ann_row_full) <- ann_row_full$Metabolite
   ann_row_full$Metabolite <- NULL
   if (".id" %in% colnames(ann_row_full)) ann_row_full$.id <- NULL
-  
+
   # Drop annotation columns that are entirely NA; coerce remaining to factors
   if (ncol(ann_row_full) > 0) {
     all_na <- vapply(ann_row_full, function(x) all(is.na(x)), logical(1))
     if (any(all_na)) ann_row_full <- ann_row_full[, !all_na, drop = FALSE]
     for (nm in colnames(ann_row_full)) ann_row_full[[nm]] <- droplevels(factor(ann_row_full[[nm]]))
   }
-  
+
   match_count <- sum(ids_extracted %in% unique(sirius_min$.id))
   message("SIRIUS matched IDs: ", match_count, " / ", length(ids_extracted))
-  
+
   ## ---------- Step C: select top-N markers per cluster (from limma) ----------
   if (!("markers_one_vs_rest" %in% names(limma_res))) {
     stop("limma_res must contain $markers_one_vs_rest.")
   }
-  
+
   ovr <- limma_res$markers_one_vs_rest
   req_cols <- c("Metabolite","adj.P.Val","logFC","TargetCluster")
   if (!all(req_cols %in% colnames(ovr))) {
     stop("limma_res$markers_one_vs_rest must have columns: ", paste(req_cols, collapse = ", "))
   }
-  
+
   # Filter markers by thresholds, then take top_n per target cluster
   top_by_cluster <- ovr |>
     dplyr::filter(adj.P.Val <= p_adj_thresh, logFC >= min_logFC) |>
@@ -3561,31 +3427,31 @@ summarize_markers_and_heatmap_with_classes <- function(
     dplyr::arrange(adj.P.Val, dplyr::desc(logFC), .by_group = TRUE) |>
     dplyr::slice_head(n = top_n) |>
     dplyr::ungroup()
-  
+
   top_metabs <- unique(top_by_cluster$Metabolite)
   if (!length(top_metabs)) stop("No metabolites passed thresholds; relax p_adj_thresh or min_logFC.")
-  
+
   # Subset feature table to selected metabolites
   keep <- intersect(rownames(X), top_metabs)
   if (!length(keep)) stop("Selected metabolites not found in rownames(metab_df). Check naming.")
   Xsub <- X[keep, , drop = FALSE]
-  
+
   # Optional transform for display (match limma transform settings)
   if (isTRUE(log_transform)) {
     minX <- suppressWarnings(min(Xsub, na.rm = TRUE))
     if (is.finite(minX) && minX < 0) Xsub <- Xsub - minX
     Xsub <- log(Xsub + log_offset)
   }
-  
+
   # Order columns by cluster level for visualization
   md[[cluster_var]] <- factor(md[[cluster_var]])
   col_order <- order(md[[cluster_var]], decreasing = FALSE)
   Xsub <- Xsub[, col_order, drop = FALSE]
   ann_col <- ann_col_all[colnames(Xsub), , drop = FALSE]
-  
+
   # Subset row annotations to selected metabolites
   ann_row <- ann_row_full[rownames(Xsub), , drop = FALSE]
-  
+
   # Replace missing/blank class values with a placeholder label and drop unused levels
   if (ncol(ann_row) > 0) {
     for (nm in colnames(ann_row)) {
@@ -3594,16 +3460,16 @@ summarize_markers_and_heatmap_with_classes <- function(
       ann_row[[nm]] <- droplevels(factor(v))
     }
   }
-  
+
   # Optional row scaling for display (z-scores per metabolite)
   X_display <- Xsub
   if (isTRUE(scale_rows) && nrow(X_display) > 1) {
     X_display <- t(scale(t(X_display)))
     X_display[!is.finite(X_display)] <- 0
   }
-  
+
   ## ---------- Step D: build annotation colors & plot ----------
-  
+
   # Helper to make fallback palettes
   make_col_pal <- function(fct, prefer_set = "Set2") {
     lev <- levels(fct)
@@ -3611,12 +3477,12 @@ summarize_markers_and_heatmap_with_classes <- function(
     cols <- if (n <= 8) RColorBrewer::brewer.pal(max(3, n), prefer_set)[seq_len(n)] else scales::hue_pal()(n)
     setNames(cols, lev)
   }
-  
+
   col_ann_cols <- list()
-  
+
   for (v in colnames(ann_col)) {
     levels_v <- levels(ann_col[[v]])
-    
+
     # Priority 1: Check the new list of lists (col_annot_colors)
     if (!is.null(col_annot_colors) && v %in% names(col_annot_colors)) {
       user_pal <- col_annot_colors[[v]]
@@ -3627,7 +3493,7 @@ summarize_markers_and_heatmap_with_classes <- function(
         warning("Variable '", v, "' in col_annot_colors is missing levels. Fallback used.")
       }
     }
-    
+
     # Priority 2: Check legacy cluster_colors for the primary cluster_var
     if (v == cluster_var && !is.null(cluster_colors)) {
       if (all(levels_v %in% names(cluster_colors))) {
@@ -3637,24 +3503,24 @@ summarize_markers_and_heatmap_with_classes <- function(
         warning("cluster_colors missing levels for '", v, "'. Fallback used.")
       }
     }
-    
+
     # Priority 3: Fallback auto-generation
     col_ann_cols[[v]] <- make_col_pal(ann_col[[v]])
   }
-  
+
   # Store palettes in a single list for reference / downstream reuse
   ann_colors <- c(list(), col_ann_cols)
-  
-  
+
+
   # Row annotation palettes (Discrete SIRIUS classes)
   if (!is.null(ann_row) && ncol(ann_row) > 0) {
     make_discrete_pal <- function(vals) {
       lev <- levels(vals)
-      
+
       has_na_lab <- class_na_label %in% lev
       lev_core   <- setdiff(lev, class_na_label)
       n <- length(lev_core)
-      
+
       base <- if (n <= 12) RColorBrewer::brewer.pal(max(3, n), "Set3")[seq_len(n)] else scales::hue_pal()(n)
       pal <- setNames(base, lev_core)
       if (has_na_lab) pal[[class_na_label]] <- class_na_color
@@ -3663,24 +3529,24 @@ summarize_markers_and_heatmap_with_classes <- function(
     row_palettes <- lapply(ann_row, make_discrete_pal)
     ann_colors   <- c(ann_colors, row_palettes)
   }
-  
+
   # ---- ComplexHeatmap dependencies ----
   if (!requireNamespace("ComplexHeatmap", quietly = TRUE) ||
       !requireNamespace("circlize", quietly = TRUE)) {
     stop("Please install packages 'ComplexHeatmap' and 'circlize' for multi-column legends.")
   }
-  
+
   # Heatmap color function (symmetric around 0 for z-scored data)
   zlim <- max(abs(range(X_display, finite = TRUE)))
   col_fun <- circlize::colorRamp2(c(-zlim, 0, zlim), c("#2166AC","#F7F7F7","#B2182B"))
-  
+
   # Row annotation colors: use the palettes built above so placeholder label gets its color
   row_ann_cols <- if (!is.null(ann_row) && ncol(ann_row) > 0) ann_colors[names(ann_row)] else list()
-  
+
   # Top (column) annotation with legend column control
   col_legend_params <- rep(list(list(ncol = c_legend_ncol)), length(colnames(ann_col)))
   names(col_legend_params) <- colnames(ann_col)
-  
+
   # Plotting with ComplexHeatmap
   # (Use the col_ann_cols list generated above)
   ha_top <- ComplexHeatmap::HeatmapAnnotation(
@@ -3688,7 +3554,7 @@ summarize_markers_and_heatmap_with_classes <- function(
     col = col_ann_cols,
     annotation_legend_param = rep(list(list(ncol = c_legend_ncol)), length(colnames(ann_col)))
   )
-  
+
   # Left (row) annotation with legend column control (or NULL if no row annotations)
   ha_left <- if (ncol(ann_row) > 0) {
     ComplexHeatmap::rowAnnotation(
@@ -3699,7 +3565,7 @@ summarize_markers_and_heatmap_with_classes <- function(
   } else {
     NULL
   }
-  
+
   # Main heatmap object
   ht <- ComplexHeatmap::Heatmap(
     X_display,
@@ -3714,11 +3580,11 @@ summarize_markers_and_heatmap_with_classes <- function(
     heatmap_legend_param = list(ncol = 2),
     column_title = sprintf("Top markers per cluster (top %d, FDR <= %.02f)", top_n, p_adj_thresh)
   )
-  
+
   # ---- Helper for saving heatmaps to common formats ----
   save_ht <- function(ht, file, width, height, dpi, legend_side, merge_legends) {
     ext <- tolower(tools::file_ext(file))
-    
+
     if (ext %in% c("pdf")) {
       grDevices::pdf(file, width = width, height = height, useDingbats = FALSE)
     } else if (ext %in% c("svg")) {
@@ -3733,7 +3599,7 @@ summarize_markers_and_heatmap_with_classes <- function(
       stop("Unsupported file extension: ", ext)
     }
     on.exit(grDevices::dev.off(), add = TRUE)
-    
+
     ComplexHeatmap::draw(
       ht,
       heatmap_legend_side = legend_side,
@@ -3741,7 +3607,7 @@ summarize_markers_and_heatmap_with_classes <- function(
       merge_legend = merge_legends
     )
   }
-  
+
   # ---- Draw or save ----
   if (!is.null(out_file)) {
     save_ht(ht, out_file, out_width, out_height, out_dpi, legend_side, merge_legends)
@@ -3753,7 +3619,7 @@ summarize_markers_and_heatmap_with_classes <- function(
       merge_legend = merge_legends
     )
   }
-  
+
   # Return key objects for reuse/inspection
   list(
     heatmap              = ht,
