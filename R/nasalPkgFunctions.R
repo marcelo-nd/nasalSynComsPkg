@@ -1449,7 +1449,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
     facet_wrap(~experiment, nrow = n_rows, scales = "free_x")
 
   if (isTRUE(strains)) {
-    p1 <- p1 + geom_bar_pattern(
+    p1 <- p1 + ggpattern::geom_bar_pattern(
       aes(x = sample, y = abundance, fill = species2, pattern = strain, pattern_density = strain),
       position = "fill", stat = "identity", color = "black", linewidth = 0.1,
       # BIGGER & SPACED PATTERNS
@@ -1459,11 +1459,11 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
       pattern_size = 0.5,    # Thicker lines/dots
       pattern_angle = 45
     ) +
-      scale_pattern_manual(
+      ggpattern::scale_pattern_manual(
         values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"),
         name = "Strain"
       ) +
-      scale_pattern_density_manual(
+      ggpattern::scale_pattern_density_manual(
         values = c("Strain 1" = 0, "Strain 2" = 0.3, "Strain 3" = 0.3), # Higher density looks clearer
         guide = "none"
       )
@@ -1476,7 +1476,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
 
   if (!is.null(metadata_df)) {
     p1 <- p1 +
-      new_scale_fill() +
+      ggnewscale::new_scale_fill() +
       geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -0.07, ymax = -0.02, fill = !!sym(metadata_col))) +
       scale_fill_manual(values = metadata_colors, name = "Cluster")
   }
@@ -1512,7 +1512,6 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
 
   return(p1)
 }
-
 
 #' Create a Relative Abundance Barplot from a Feature Table
 #'
