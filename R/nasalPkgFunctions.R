@@ -4012,13 +4012,13 @@ filter_low_abundance <- function(rel_abundance, threshold = 0.01) {
 #'
 #' @examples
 #' \dontrun{
-#' prep <- prepare_data_distance(abund = rel_abund_table, meta = md)
+#' prep <- prepare_data(abund = rel_abund_table, meta = md)
 #' head(prep$meta)
 #' dim(prep$X)  # samples x taxa
 #' }
 #'
 #' @export
-prepare_data_distance <- function(abund, meta) {
+prepare_data <- function(abund, meta) {
   # Ensure column/rownames are present
   stopifnot(!is.null(colnames(abund)), !is.null(rownames(meta)))
 
@@ -4070,9 +4070,9 @@ prepare_data_distance <- function(abund, meta) {
 #' Returns a tidy table containing individual pairwise distances plus per-group
 #' summary statistics (mean, SD, number of pairs).
 #'
-#' @param meta Metadata data.frame produced by \code{prepare_data_distance()}, containing at least:
+#' @param meta Metadata data.frame produced by \code{prepare_data()}, containing at least:
 #'   \code{sample_id}, \code{syncom_id}, \code{time_num}, \code{time_label}, \code{rep_raw}.
-#' @param X Numeric matrix of samples x taxa (rows are sample IDs), typically \code{prepare_data_distance()$X}.
+#' @param X Numeric matrix of samples x taxa (rows are sample IDs), typically \code{prepare_data()$X}.
 #' @param method Character. Distance method passed to \code{vegan::vegdist()}
 #'   (default \code{"bray"}).
 #'
@@ -4092,7 +4092,7 @@ prepare_data_distance <- function(abund, meta) {
 #'
 #' @examples
 #' \dontrun{
-#' prep <- prepare_data_distance(abund, meta)
+#' prep <- prepare_data(abund, meta)
 #' dist_tbl <- compute_within_tp_distances(prep$meta, prep$X, method = "bray")
 #' dist_tbl
 #' }
@@ -4139,43 +4139,77 @@ compute_within_tp_distances <- function(meta, X, method = "bray") {
 #' Plot within-timepoint replicate dissimilarity trajectories per SynCom
 #'
 #' Visualizes replicate dissimilarities over time with one facet per SynCom.
-#' Individual replicate-pair distances are shown as jittered points; the mean per
-#' time point is overlaid as a line and points (via \code{stat_summary}).
+#' SynComs can be ordered by cluster and colored by their respective
+#' community cluster assignment to highlight biological patterns.
 #'
 #' @param dist_tbl Tibble produced by \code{compute_within_tp_distances()}.
+#' @param metadata Data frame containing at least \code{ATTRIBUTE_SynCom}
+#'   and \code{Cluster} columns to facilitate grouping and coloring.
+#' @param syncom_order Optional character vector defining the specific order
+#'   of SynCom facets (e.g., grouped by cluster).
+#' @param n_rows Integer. Number of rows in the \code{facet_wrap} grid. Default is \code{2}.
+#' @param cluster_cols Named character vector mapping Cluster names to colors.
 #'
 #' @return A \code{ggplot} object.
 #'
 #' @examples
 #' \dontrun{
-#' p <- plot_replicate_similarity(dist_tbl)
+#' p <- plot_replicate_similarity(
+#'   dist_tbl = dist_tbl,
+#'   metadata = metadata,
+#'   syncom_order = all_names,
+#'   cluster_cols = cluster_colors
+#' )
 #' p
 #' }
 #'
 #' @export
-plot_replicate_similarity <- function(dist_tbl) {
-  # Order SynCom facets numerically based on digits in syncom_id (e.g., "SynCom10")
-  dist_tbl <- dist_tbl %>%
-    mutate(
-      syncom_order = as.numeric(gsub("\\D", "", syncom_id)),
-      syncom_id = factor(syncom_id, levels = unique(syncom_id[order(syncom_order)]))
-    )
+plot_replicate_similarity <- function(dist_tbl, metadata, syncom_order = NULL, n_rows = 2, cluster_cols = NULL) {
 
+  # Step 1: Join cluster info from metadata
+  # Assuming metadata has 'ATTRIBUTE_SynCom' and 'Cluster' columns
+  meta_sub <- metadata %>%
+    dplyr::select(Sample, Cluster) %>%
+    dplyr::distinct()
+
+  dist_tbl <- dist_tbl %>%
+    dplyr::left_join(meta_sub, by = c("syncom_id" = "Sample")) %>%
+    mutate(facet_label = paste0(syncom_id, " (", Cluster, ")"))
+
+  # Step 2: Handle Ordering
+  if (!is.null(syncom_order)) {
+    # Match the order of facet_label to your syncom_order
+    order_df <- data.frame(syncom_id = syncom_order) %>%
+      left_join(meta_sub, by = c("syncom_id" = "Sample")) %>%
+      mutate(facet_label = paste0(syncom_id, " (", Cluster, ")"))
+
+    dist_tbl$facet_label <- factor(dist_tbl$facet_label, levels = order_df$facet_label)
+  }
+
+  # Step 3: Plotting
   ggplot(dist_tbl, aes(x = time_num, y = pairwise_dist)) +
-    geom_point(alpha = 0.6, position = position_jitter(width = 0.05, height = 0)) +
-    stat_summary(fun = mean, geom = "line", aes(group = 1), linewidth = 0.8) +
-    stat_summary(fun = mean, geom = "point", size = 2) +
-    facet_wrap(~ syncom_id, scales = "free_y") +
+    geom_point(alpha = 0.3, position = position_jitter(width = 0.1, height = 0), size = 1, color = "gray50") +
+    # Color the summary by Cluster
+    stat_summary(fun = mean, geom = "line", aes(group = 1, color = Cluster), linewidth = 1) +
+    stat_summary(fun = mean, geom = "point", aes(color = Cluster), size = 2) +
+    facet_wrap(~ facet_label, scales = "free_y", nrow = n_rows) +
     scale_x_continuous(breaks = 1:4, labels = c("T1","T2","T3","T4")) +
+    # Use your defined cluster colors
+    scale_color_manual(values = cluster_cols) +
     labs(
       x = "Time point",
       y = "Replicate dissimilarity (Bray-Curtis)",
-      title = "Within-time point replicate dissimilarity per SynCom"
+      title = "Supplementary Figure 2A: Replicate dissimilarity per SynCom",
+      color = "Community Cluster"
     ) +
     theme_minimal(base_size = 12) +
-    theme(panel.grid.minor = element_blank())
+    theme(
+      panel.grid.minor = element_blank(),
+      strip.text = element_text(face = "bold", size = 9),
+      legend.position = "bottom",
+      panel.border = element_rect(colour = "grey90", fill = NA, size = 0.5)
+    )
 }
-
 
 #' Compute distance to the final time point (T4) within each SynCom
 #'
@@ -4192,10 +4226,10 @@ plot_replicate_similarity <- function(dist_tbl) {
 #'   \item \code{"allpair_mean"}: mean distance from each sample to all T4 replicates.
 #' }
 #'
-#' @param meta Metadata data frame (typically \code{prepare_data_distance()$meta}) with sample IDs
+#' @param meta Metadata data frame (typically \code{prepare_data()$meta}) with sample IDs
 #'   and SynCom/time/replicate information. Must correspond row-for-row to \code{X}.
 #' @param X Numeric matrix of samples x taxa (rows are samples). Must correspond row-for-row
-#'   to \code{meta}. Typically \code{prepare_data_distance()$X}.
+#'   to \code{meta}. Typically \code{prepare_data()$X}.
 #' @param method Character. Distance method passed to \code{vegan::vegdist()}
 #'   (default \code{"bray"}).
 #' @param mode Character. How to define the T4 reference:
@@ -4230,7 +4264,7 @@ plot_replicate_similarity <- function(dist_tbl) {
 #'
 #' @examples
 #' \dontrun{
-#' prep <- prepare_data_distance(abund, meta)
+#' prep <- prepare_data(abund, meta)
 #' out <- compute_distance_to_final(prep$meta, prep$X, method = "bray", mode = "centroid")
 #' head(out$per_sample)
 #' out$summary
@@ -4377,63 +4411,93 @@ compute_distance_to_final <- function(meta, X, method = "bray",
 
 #' Plot distance-to-final-state trajectories per SynCom
 #'
-#' Creates a faceted plot (one panel per SynCom) showing per-sample Bray-Curtis
-#' distance to the SynCom-specific final state (T4) over time. Individual samples
-#' are shown as jittered points, and the mean distance at each time point is
-#' overlaid as a line and points.
+#' Creates a faceted plot showing per-sample Bray-Curtis distance to the
+#' SynCom-specific final state (T4) over time. Panels are colored by community
+#' cluster to help identify distinct assembly and stabilization patterns.
 #'
 #' @param per_sample Tibble produced by \code{compute_distance_to_final()$per_sample}.
 #'   Must include \code{syncom_id}, \code{time_num}, and \code{dist_to_T4}.
 #' @param summary_tbl Tibble produced by \code{compute_distance_to_final()$summary}.
 #'   Must include \code{syncom_id}, \code{time_num}, and \code{mean_dist_to_T4}.
+#' @param metadata Data frame containing at least \code{ATTRIBUTE_SynCom}
+#'   and \code{Cluster} columns.
+#' @param syncom_order Optional character vector for custom facet ordering.
+#' @param n_rows Integer. Number of rows in the \code{facet_wrap} grid. Default is \code{2}.
+#' @param cluster_cols Named character vector mapping Cluster names to colors.
 #'
 #' @return A \code{ggplot} object.
 #'
 #' @examples
 #' \dontrun{
-#' out <- compute_distance_to_final(meta, X, mode = "allpair_mean")
-#' p <- plot_distance_to_final(out$per_sample, out$summary)
+#' out <- compute_distance_to_final(meta, X, mode = "centroid")
+#' p <- plot_distance_to_final(
+#'   per_sample = out$per_sample,
+#'   summary_tbl = out$summary,
+#'   metadata = metadata,
+#'   syncom_order = all_names,
+#'   cluster_cols = cluster_colors
+#' )
 #' p
 #' }
 #'
 #' @export
-plot_distance_to_final <- function(per_sample, summary_tbl) {
-  # Consistent numeric ordering of SynCom facet levels (based on digits in syncom_id)
-  order_levels <- summary_tbl %>%
-    mutate(syncom_order = as.numeric(gsub("\\D", "", syncom_id))) %>%
-    arrange(syncom_order) %>%
-    pull(syncom_id) %>%
-    unique()
+plot_distance_to_final <- function(per_sample, summary_tbl, metadata, syncom_order = NULL, n_rows = 2, cluster_cols = NULL) {
+
+  # Step 1: Join cluster info
+  meta_sub <- metadata %>%
+    dplyr::select(Sample, Cluster) %>%
+    dplyr::distinct()
+
+  summary_tbl <- summary_tbl %>%
+    dplyr::left_join(meta_sub, by = c("syncom_id" = "Sample")) %>%
+    mutate(facet_label = paste0(syncom_id, " (", Cluster, ")"))
 
   per_sample <- per_sample %>%
-    mutate(syncom_id = factor(syncom_id, levels = order_levels))
-  summary_tbl <- summary_tbl %>%
-    mutate(syncom_id = factor(syncom_id, levels = order_levels))
+    dplyr::left_join(meta_sub, by = c("syncom_id" = "Sample")) %>%
+    mutate(facet_label = paste0(syncom_id, " (", Cluster, ")"))
 
+  # Step 2: Handle Ordering
+  if (!is.null(syncom_order)) {
+    order_df <- data.frame(syncom_id = syncom_order) %>%
+      left_join(meta_sub, by = c("syncom_id" = "Sample")) %>%
+      mutate(facet_label = paste0(syncom_id, " (", Cluster, ")"))
+
+    summary_tbl$facet_label <- factor(summary_tbl$facet_label, levels = order_df$facet_label)
+    per_sample$facet_label <- factor(per_sample$facet_label, levels = order_df$facet_label)
+  }
+
+  # Step 3: Plotting
   ggplot() +
     geom_point(
       data = per_sample,
       aes(x = time_num, y = dist_to_T4),
-      alpha = 0.6,
-      position = position_jitter(width = 0.05, height = 0)
+      alpha = 0.3, position = position_jitter(width = 0.1, height = 0), size = 1, color = "gray50"
     ) +
     geom_line(
       data = summary_tbl,
-      aes(x = time_num, y = mean_dist_to_T4, group = 1),
-      linewidth = 0.8
+      aes(x = time_num, y = mean_dist_to_T4, group = 1, color = Cluster),
+      linewidth = 1
     ) +
     geom_point(
       data = summary_tbl,
-      aes(x = time_num, y = mean_dist_to_T4),
+      aes(x = time_num, y = mean_dist_to_T4, color = Cluster),
       size = 2
     ) +
-    facet_wrap(~ syncom_id, scales = "free_y") +
+    facet_wrap(~ facet_label, scales = "free_y", nrow = n_rows) +
     scale_x_continuous(breaks = 1:4, labels = c("T1","T2","T3","T4")) +
+    scale_color_manual(values = cluster_cols) +
     labs(
       x = "Time point",
       y = "Bray-Curtis distance to final state (T4)",
-      title = "Stabilization toward final community composition"
+      title = "Supplementary Figure 2B: Stabilization toward final community composition",
+      color = "Community Cluster"
     ) +
     theme_minimal(base_size = 12) +
-    theme(panel.grid.minor = element_blank())
+    theme(
+      panel.grid.minor = element_blank(),
+      strip.text = element_text(face = "bold", size = 9),
+      legend.position = "bottom",
+      panel.border = element_rect(colour = "grey90", fill = NA, size = 0.5)
+    )
 }
+
