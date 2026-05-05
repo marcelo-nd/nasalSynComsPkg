@@ -1371,8 +1371,6 @@ order_samples_by_clustering <- function(feature_table){
 #'   samples as columns). Each list element corresponds to one experiment.
 #' @param experiments_names Character vector of the same length as \code{feature_tables}
 #'   used for facet labeling and metadata joining.
-#' @param shared_samples Logical. If \code{TRUE}, facets by sample. If \code{FALSE}
-#'   (default), facets by experiment.
 #' @param strains Logical. If \code{TRUE}, uses \pkg{ggpattern} to encode strains
 #'   (Strain 1: none; Strain 2: circle; Strain 3: stripe). Default is \code{FALSE}.
 #' @param colour_palette Named character vector of colors for species.
@@ -1405,7 +1403,7 @@ order_samples_by_clustering <- function(feature_table){
 #' @return A \code{ggplot} object.
 #'
 #' @export
-barplots_grid <- function(feature_tables, experiments_names, shared_samples = FALSE, strains = FALSE,
+barplots_grid <- function(feature_tables, experiments_names, strains = FALSE,
                           colour_palette = NULL, species_order = NULL,
                           metadata_df = NULL, metadata_col = "Cluster", metadata_colors = NULL,
                           n_rows = 1, legend_cols = 3, legend_pos = "bottom",
@@ -1455,17 +1453,18 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
       # BIGGER & SPACED PATTERNS
       pattern_color = "white",
       pattern_fill = "white",
-      pattern_spacing = 0.04, # Increased from 0.02 for more space
-      pattern_size = 0.5,    # Thicker lines/dots
+      pattern_density = 0.05,
+      #pattern_spacing = 0.04, # Increased from 0.02 for more space
+      #pattern_size = 0.5,    # Thicker lines/dots
       pattern_angle = 45
     ) +
       ggpattern::scale_pattern_manual(
         values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"),
         name = "Strain"
       ) +
-      ggpattern::scale_pattern_density_manual(
-        values = c("Strain 1" = 0, "Strain 2" = 0.3, "Strain 3" = 0.3), # Higher density looks clearer
-        guide = "none"
+      ggpattern::scale_pattern_spacing_manual(
+        # Match the spacing here to the geom_bar_pattern for the legend to work
+        values = c("Strain 1" = 0, "Strain 2" = unit(2.5, "mm"), "Strain 3" = unit(2.5, "mm"))
       )
   } else {
     p1 <- p1 + geom_bar(aes(x = sample, y = abundance, fill = species2),
@@ -1502,9 +1501,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
       pattern = guide_legend(
         override.aes = list(
           fill = "white",
-          pattern_spacing = 0.02, # Smaller spacing for the legend key makes patterns repeat correctly
-          pattern_size = 0.3,
-          pattern_density = 0.4
+          pattern_spacing = 0.02 # Smaller spacing for the legend key makes patterns repeat correctly
         )
       )
     ) +
