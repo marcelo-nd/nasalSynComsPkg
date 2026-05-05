@@ -3982,7 +3982,7 @@ filter_low_abundance <- function(rel_abundance, threshold = 0.01) {
 #' \itemize{
 #'   \item intersecting samples between an abundance table and a metadata table,
 #'   \item creating standardized metadata columns used downstream (sample/time/replicate/SynCom),
-#'   \item mapping time labels (T1, T2, T3, TF) to numeric order (1..4), and
+#'   \item mapping time labels (T1, T2, T3, T4) to numeric order (1..4), and
 #'   \item producing a samples x taxa matrix normalized to relative abundances per sample.
 #' }
 #'
@@ -3996,7 +3996,7 @@ filter_low_abundance <- function(rel_abundance, threshold = 0.01) {
 #' Metadata is reordered to match the abundance columns.
 #'
 #' **Time mapping**
-#' \code{ATTRIBUTE_Time} must be one of \code{T1}, \code{T2}, \code{T3}, \code{TF}.
+#' \code{ATTRIBUTE_Time} must be one of \code{T1}, \code{T2}, \code{T3}, \code{T4}.
 #' These are mapped to numeric order \code{1..4} and also stored as an ordered factor.
 #'
 #' **Normalization**
@@ -4012,13 +4012,13 @@ filter_low_abundance <- function(rel_abundance, threshold = 0.01) {
 #'
 #' @examples
 #' \dontrun{
-#' prep <- prepare_data(abund = rel_abund_table, meta = md)
+#' prep <- prepare_data_distance(abund = rel_abund_table, meta = md)
 #' head(prep$meta)
 #' dim(prep$X)  # samples x taxa
 #' }
 #'
 #' @export
-prepare_data <- function(abund, meta) {
+prepare_data_distance <- function(abund, meta) {
   # Ensure column/rownames are present
   stopifnot(!is.null(colnames(abund)), !is.null(rownames(meta)))
 
@@ -4040,8 +4040,8 @@ prepare_data <- function(abund, meta) {
       rep_raw   = .data$ATTRIBUTE_Replicate
     )
 
-  # Map times to numeric order 1..4 (T1,T2,T3,TF->4)
-  time_map <- c(T1 = 1, T2 = 2, T3 = 3, TF = 4)
+  # Map times to numeric order 1..4 (T1,T2,T3,T4->4)
+  time_map <- c(T1 = 1, T2 = 2, T3 = 3, T4 = 4)
   if (!all(meta2$time_raw %in% names(time_map))) {
     bad_levels <- setdiff(unique(meta2$time_raw), names(time_map))
     stop("Unexpected time labels in ATTRIBUTE_Time: ", paste(bad_levels, collapse = ", "))
@@ -4050,7 +4050,7 @@ prepare_data <- function(abund, meta) {
   meta2 <- meta2 %>%
     mutate(
       time_num   = unname(time_map[time_raw]),
-      time_label = factor(time_raw, levels = c("T1","T2","T3","TF"))
+      time_label = factor(time_raw, levels = c("T1","T2","T3","T4"))
     )
 
   # Normalize abundances per sample (samples x taxa)
@@ -4070,9 +4070,9 @@ prepare_data <- function(abund, meta) {
 #' Returns a tidy table containing individual pairwise distances plus per-group
 #' summary statistics (mean, SD, number of pairs).
 #'
-#' @param meta Metadata data.frame produced by \code{prepare_data()}, containing at least:
+#' @param meta Metadata data.frame produced by \code{prepare_data_distance()}, containing at least:
 #'   \code{sample_id}, \code{syncom_id}, \code{time_num}, \code{time_label}, \code{rep_raw}.
-#' @param X Numeric matrix of samples x taxa (rows are sample IDs), typically \code{prepare_data()$X}.
+#' @param X Numeric matrix of samples x taxa (rows are sample IDs), typically \code{prepare_data_distance()$X}.
 #' @param method Character. Distance method passed to \code{vegan::vegdist()}
 #'   (default \code{"bray"}).
 #'
@@ -4092,7 +4092,7 @@ prepare_data <- function(abund, meta) {
 #'
 #' @examples
 #' \dontrun{
-#' prep <- prepare_data(abund, meta)
+#' prep <- prepare_data_distance(abund, meta)
 #' dist_tbl <- compute_within_tp_distances(prep$meta, prep$X, method = "bray")
 #' dist_tbl
 #' }
@@ -4106,7 +4106,7 @@ compute_within_tp_distances <- function(meta, X, method = "bray") {
     if (length(sample_ids) < 2) return(tibble())
 
     # Distances among samples (rows)
-    d  <- vegdist(X[sample_ids, , drop = FALSE], method = method)
+    d  <- vegan::vegdist(X[sample_ids, , drop = FALSE], method = method)
     dv <- as.numeric(d)
 
     # Label replicate pairs (e.g., "R1_vs_R2")
@@ -4166,7 +4166,7 @@ plot_replicate_similarity <- function(dist_tbl) {
     stat_summary(fun = mean, geom = "line", aes(group = 1), linewidth = 0.8) +
     stat_summary(fun = mean, geom = "point", size = 2) +
     facet_wrap(~ syncom_id, scales = "free_y") +
-    scale_x_continuous(breaks = 1:4, labels = c("T1","T2","T3","TF")) +
+    scale_x_continuous(breaks = 1:4, labels = c("T1","T2","T3","T4")) +
     labs(
       x = "Time point",
       y = "Replicate dissimilarity (Bray-Curtis)",
@@ -4177,28 +4177,28 @@ plot_replicate_similarity <- function(dist_tbl) {
 }
 
 
-#' Compute distance to the final time point (TF) within each SynCom
+#' Compute distance to the final time point (T4) within each SynCom
 #'
 #' Quantifies "stabilization" by measuring, for each sample, its dissimilarity to
-#' the SynCom-specific final state (TF). Distances are computed within each SynCom
+#' the SynCom-specific final state (T4). Distances are computed within each SynCom
 #' using \code{vegan::vegdist()} (default Bray-Curtis), and summarized per SynCom
 #' and time point.
 #'
 #' Three modes are supported:
 #' \itemize{
-#'   \item \code{"centroid"}: distance from each sample to the TF centroid (mean profile).
-#'   \item \code{"replicate"}: distance from each sample to the TF sample(s) with the
+#'   \item \code{"centroid"}: distance from each sample to the T4 centroid (mean profile).
+#'   \item \code{"replicate"}: distance from each sample to the T4 sample(s) with the
 #'     same replicate ID; falls back to centroid if no match exists.
-#'   \item \code{"allpair_mean"}: mean distance from each sample to all TF replicates.
+#'   \item \code{"allpair_mean"}: mean distance from each sample to all T4 replicates.
 #' }
 #'
-#' @param meta Metadata data frame (typically \code{prepare_data()$meta}) with sample IDs
+#' @param meta Metadata data frame (typically \code{prepare_data_distance()$meta}) with sample IDs
 #'   and SynCom/time/replicate information. Must correspond row-for-row to \code{X}.
 #' @param X Numeric matrix of samples x taxa (rows are samples). Must correspond row-for-row
-#'   to \code{meta}. Typically \code{prepare_data()$X}.
+#'   to \code{meta}. Typically \code{prepare_data_distance()$X}.
 #' @param method Character. Distance method passed to \code{vegan::vegdist()}
 #'   (default \code{"bray"}).
-#' @param mode Character. How to define the TF reference:
+#' @param mode Character. How to define the T4 reference:
 #'   \code{"centroid"}, \code{"replicate"}, or \code{"allpair_mean"}.
 #'
 #' @details
@@ -4208,21 +4208,21 @@ plot_replicate_similarity <- function(dist_tbl) {
 #' If any are missing, it attempts to create them from:
 #' \code{ATTRIBUTE_SynCom}, \code{ATTRIBUTE_Time}, \code{ATTRIBUTE_Replicate}.
 #'
-#' **TF detection**
-#' TF samples are those with \code{time_label == "TF"} within each SynCom. If a SynCom
-#' has no TF samples, distances for that SynCom are returned as \code{NA}.
+#' **T4 detection**
+#' T4 samples are those with \code{time_label == "T4"} within each SynCom. If a SynCom
+#' has no T4 samples, distances for that SynCom are returned as \code{NA}.
 #'
 #' **Computation notes**
 #' \itemize{
-#'   \item \code{"centroid"} uses \code{colMeans()} across TF samples as the reference vector.
-#'   \item \code{"replicate"} matches TF sample(s) by replicate ID; if multiple matches are
-#'     found, their distances are averaged; if none, the TF centroid is used.
-#'   \item \code{"allpair_mean"} averages the distances to all TF replicates.
+#'   \item \code{"centroid"} uses \code{colMeans()} across T4 samples as the reference vector.
+#'   \item \code{"replicate"} matches T4 sample(s) by replicate ID; if multiple matches are
+#'     found, their distances are averaged; if none, the T4 centroid is used.
+#'   \item \code{"allpair_mean"} averages the distances to all T4 replicates.
 #' }
 #'
 #' @return A list with:
 #' \itemize{
-#'   \item \code{per_sample}: tibble with one row per sample, including \code{dist_to_TF}
+#'   \item \code{per_sample}: tibble with one row per sample, including \code{dist_to_T4}
 #'     and the key metadata columns.
 #'   \item \code{summary}: tibble summarized per \code{syncom_id x time_label x time_num}
 #'     with mean, SD, and sample counts.
@@ -4230,7 +4230,7 @@ plot_replicate_similarity <- function(dist_tbl) {
 #'
 #' @examples
 #' \dontrun{
-#' prep <- prepare_data(abund, meta)
+#' prep <- prepare_data_distance(abund, meta)
 #' out <- compute_distance_to_final(prep$meta, prep$X, method = "bray", mode = "centroid")
 #' head(out$per_sample)
 #' out$summary
@@ -4260,10 +4260,10 @@ compute_distance_to_final <- function(meta, X, method = "bray",
 
   if (!"time_label" %in% names(meta) || !"time_num" %in% names(meta)) {
     if ("ATTRIBUTE_Time" %in% names(meta)) {
-      time_map <- c(T1 = 1, T2 = 2, T3 = 3, TF = 4)
+      time_map <- c(T1 = 1, T2 = 2, T3 = 3, T4 = 4)
       meta <- meta %>%
         mutate(
-          time_label = factor(.data$ATTRIBUTE_Time, levels = c("T1","T2","T3","TF")),
+          time_label = factor(.data$ATTRIBUTE_Time, levels = c("T1","T2","T3","T4")),
           time_num   = unname(time_map[as.character(.data$ATTRIBUTE_Time)])
         )
     } else {
@@ -4293,82 +4293,82 @@ compute_distance_to_final <- function(meta, X, method = "bray",
   # Debug preview of the metadata block structure
   print(head(dat))
 
-  # ---- Compute distance-to-TF within each SynCom ----
+  # ---- Compute distance-to-T4 within each SynCom ----
   results <- dat %>%
     dplyr::group_by(syncom_id) %>%
     dplyr::group_modify(~{
       block_meta <- .x
       ids   <- block_meta$sample_id
-      tf_ids <- block_meta$sample_id[block_meta$time_label == "TF"]
+      t4_ids <- block_meta$sample_id[block_meta$time_label == "T4"]
 
-      # If no TF samples exist for this SynCom, return NA distances
-      if (length(tf_ids) == 0) {
-        return(tibble::tibble(sample_id = ids, dist_to_TF = NA_real_))
+      # If no T4 samples exist for this SynCom, return NA distances
+      if (length(t4_ids) == 0) {
+        return(tibble::tibble(sample_id = ids, dist_to_T4 = NA_real_))
       }
 
       if (mode == "centroid") {
-        # Reference = TF centroid (mean profile)
-        tf_centroid <- colMeans(X[tf_ids, , drop = FALSE])
+        # Reference = T4 centroid (mean profile)
+        t4_centroid <- colMeans(X[t4_ids, , drop = FALSE])
 
         tibble::tibble(
           sample_id = ids,
-          dist_to_TF = apply(X[ids, , drop = FALSE], 1, function(r) {
-            d <- vegan::vegdist(rbind(r, tf_centroid), method = method)
+          dist_to_T4 = apply(X[ids, , drop = FALSE], 1, function(r) {
+            d <- vegan::vegdist(rbind(r, t4_centroid), method = method)
             as.numeric(d)[1]
           })
         )
 
       } else if (mode == "replicate") {
-        # Reference = TF sample(s) matching replicate ID; fallback to centroid
-        tf_centroid <- colMeans(X[tf_ids, , drop = FALSE])
+        # Reference = T4 sample(s) matching replicate ID; fallback to centroid
+        t4_centroid <- colMeans(X[t4_ids, , drop = FALSE])
 
-        tf_rep_map <- tibble::tibble(
-          tf_id  = tf_ids,
-          tf_rep = block_meta$rep_raw[match(tf_ids, block_meta$sample_id)]
+        t4_rep_map <- tibble::tibble(
+          t4_id  = t4_ids,
+          t4_rep = block_meta$rep_raw[match(t4_ids, block_meta$sample_id)]
         )
 
         purrr::map_dfr(ids, function(sid) {
           rep_s <- block_meta$rep_raw[block_meta$sample_id == sid]
-          tf_match <- tf_rep_map$tf_id[tf_rep_map$tf_rep == rep_s]
+          t4_match <- t4_rep_map$t4_id[t4_rep_map$t4_rep == rep_s]
 
-          dval <- if (length(tf_match) >= 1) {
-            if (length(tf_match) == 1) {
-              as.numeric(vegan::vegdist(rbind(X[sid, ], X[tf_match, ]), method = method))[1]
+          dval <- if (length(t4_match) >= 1) {
+            if (length(t4_match) == 1) {
+              as.numeric(vegan::vegdist(rbind(X[sid, ], X[t4_match, ]), method = method))[1]
             } else {
-              # If multiple TF matches for the replicate, average distances
-              mean(as.numeric(vegan::vegdist(rbind(X[sid, ], X[tf_match, ]), method = method))[seq_along(tf_match)])
+              # If multiple T4 matches for the replicate, average distances
+              mean(as.numeric(vegan::vegdist(rbind(X[sid, ], X[t4_match, ]), method = method))[seq_along(t4_match)])
             }
           } else {
-            # Fallback: distance to TF centroid
-            as.numeric(vegan::vegdist(rbind(X[sid, ], tf_centroid), method = method))[1]
+            # Fallback: distance to T4 centroid
+            as.numeric(vegan::vegdist(rbind(X[sid, ], t4_centroid), method = method))[1]
           }
 
-          tibble::tibble(sample_id = sid, dist_to_TF = dval)
+          tibble::tibble(sample_id = sid, dist_to_T4 = dval)
         })
 
       } else { # mode == "allpair_mean"
-        # Reference = average distance to all TF replicates
+        # Reference = average distance to all T4 replicates
         purrr::map_dfr(ids, function(sid) {
-          d <- vegan::vegdist(rbind(X[sid, ], X[tf_ids, ]), method = method)
+          d <- vegan::vegdist(rbind(X[sid, ], X[t4_ids, ]), method = method)
           tibble::tibble(
             sample_id = sid,
-            dist_to_TF = mean(as.numeric(d)[seq_along(tf_ids)])
+            dist_to_T4 = mean(as.numeric(d)[seq_along(t4_ids)])
           )
         })
       }
     }) %>%
     dplyr::ungroup() %>%
     # Drop the group key that group_modify appended and reattach clean metadata
-    dplyr::select(sample_id, dist_to_TF) %>%
+    dplyr::select(sample_id, dist_to_T4) %>%
     dplyr::left_join(dat, by = "sample_id")
 
   # ---- Summarize per SynCom x time point ----
   summary_tbl <- results %>%
     dplyr::group_by(syncom_id, time_label, time_num) %>%
     dplyr::summarize(
-      mean_dist_to_TF = mean(dist_to_TF, na.rm = TRUE),
-      sd_dist_to_TF   = sd(dist_to_TF, na.rm = TRUE),
-      n               = sum(!is.na(dist_to_TF)),
+      mean_dist_to_T4 = mean(dist_to_T4, na.rm = TRUE),
+      sd_dist_to_T4   = sd(dist_to_T4, na.rm = TRUE),
+      n               = sum(!is.na(dist_to_T4)),
       .groups = "drop"
     )
 
@@ -4378,14 +4378,14 @@ compute_distance_to_final <- function(meta, X, method = "bray",
 #' Plot distance-to-final-state trajectories per SynCom
 #'
 #' Creates a faceted plot (one panel per SynCom) showing per-sample Bray-Curtis
-#' distance to the SynCom-specific final state (TF) over time. Individual samples
+#' distance to the SynCom-specific final state (T4) over time. Individual samples
 #' are shown as jittered points, and the mean distance at each time point is
 #' overlaid as a line and points.
 #'
 #' @param per_sample Tibble produced by \code{compute_distance_to_final()$per_sample}.
-#'   Must include \code{syncom_id}, \code{time_num}, and \code{dist_to_TF}.
+#'   Must include \code{syncom_id}, \code{time_num}, and \code{dist_to_T4}.
 #' @param summary_tbl Tibble produced by \code{compute_distance_to_final()$summary}.
-#'   Must include \code{syncom_id}, \code{time_num}, and \code{mean_dist_to_TF}.
+#'   Must include \code{syncom_id}, \code{time_num}, and \code{mean_dist_to_T4}.
 #'
 #' @return A \code{ggplot} object.
 #'
@@ -4413,25 +4413,25 @@ plot_distance_to_final <- function(per_sample, summary_tbl) {
   ggplot() +
     geom_point(
       data = per_sample,
-      aes(x = time_num, y = dist_to_TF),
+      aes(x = time_num, y = dist_to_T4),
       alpha = 0.6,
       position = position_jitter(width = 0.05, height = 0)
     ) +
     geom_line(
       data = summary_tbl,
-      aes(x = time_num, y = mean_dist_to_TF, group = 1),
+      aes(x = time_num, y = mean_dist_to_T4, group = 1),
       linewidth = 0.8
     ) +
     geom_point(
       data = summary_tbl,
-      aes(x = time_num, y = mean_dist_to_TF),
+      aes(x = time_num, y = mean_dist_to_T4),
       size = 2
     ) +
     facet_wrap(~ syncom_id, scales = "free_y") +
-    scale_x_continuous(breaks = 1:4, labels = c("T1","T2","T3","TF")) +
+    scale_x_continuous(breaks = 1:4, labels = c("T1","T2","T3","T4")) +
     labs(
       x = "Time point",
-      y = "Bray-Curtis distance to final state (TF)",
+      y = "Bray-Curtis distance to final state (T4)",
       title = "Stabilization toward final community composition"
     ) +
     theme_minimal(base_size = 12) +
