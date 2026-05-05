@@ -1,6 +1,6 @@
 Package: nasalSynComsPkg
 Title: Tools for Analyzing Nasal Synthetic Community Sequencing and Metabolomics Data
-Version: 0.0.0.9008
+Version: 0.0.0.9009
 Authors@R: 
     person("Marcelo", "Navarro Diaz", email = "marcelo.n.d@ciencias.unam.mx", role = c("aut", "cre"))
 Description: Provides functions to import, clean, align, and analyze nasal synthetic community (SynCom)
