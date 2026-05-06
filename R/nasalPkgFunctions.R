@@ -941,8 +941,6 @@ cluster_barplot_panels <- function(
     species_order  = NULL,
     strip_color = "black"
 ) {
-  # Load necessary libraries (or use namespace calls)
-  # require(dplyr); require(ggplot2); require(ggpattern); require(ggh4x); require(reshape2)
 
   if (is.null(best_k)) {
     stop("Argument 'best_k' must be provided.")
@@ -1036,12 +1034,14 @@ cluster_barplot_panels <- function(
             fill = "azure3",
             pattern_fill = "white",
             pattern_color = "white",
-            pattern_spacing = 0.02 # Slightly adjust for legend box size
+            pattern_spacing = 0.02
           )
         ),
         fill = guide_legend(
           title = "Species",
-          override.aes = list(pattern = "none")
+          override.aes = list(pattern = "none"),
+          # Species in italics
+          label.theme = element_text(size = 12, face = "italic")
         )
       )
   }
@@ -1057,8 +1057,11 @@ cluster_barplot_panels <- function(
     theme_bw() +
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      axis.text.y = element_text(size = 12),
       strip.text  = element_text(color = strip_color, face = "bold"),
-      panel.spacing = unit(0.1, "lines")
+      panel.spacing = unit(0.1, "lines"),
+      legend.text = element_text(size = 12),
+      legend.title = element_text(size = 12, face = "bold")
     )
 #    ) +
 #    labs(y = "Relative Abundance", title = paste("Nasal SynCom Clusters (k =", best_k, ")"))
@@ -1068,9 +1071,21 @@ cluster_barplot_panels <- function(
     p1 <- p1 + scale_fill_manual(values = colour_palette, drop = FALSE)
   }
 
-  return(list(plot = p1, df_long = df_long))
-}
+  # --- CAPTURE VISUAL ORDER ---
+  # This mimics how ggplot draws the facets: Cluster 1, then Cluster 2...
+  # and inside those clusters, Sample A, then Sample B...
+  final_samples <- df_long %>%
+    dplyr::arrange(Cluster, Sample) %>%
+    dplyr::pull(Sample) %>%
+    unique() %>%
+    as.character()
 
+  return(list(
+    plot = p1,
+    df_long = df_long,
+    sample_order = final_samples # This is your "Master Order"
+  ))
+}
 
 #' Convert Strain-Level OTU/ASV Names to Species-Level Numbered Labels
 #'
@@ -1403,13 +1418,17 @@ order_samples_by_clustering <- function(feature_table){
 #' @return A \code{ggplot} object.
 #'
 #' @export
-barplots_grid <- function(feature_tables, experiments_names, strains = FALSE,
+barplots_grid <- function(feature_tables, experiments_names, shared_samples = FALSE, strains = FALSE,
                           colour_palette = NULL, species_order = NULL,
                           metadata_df = NULL, metadata_col = "Cluster", metadata_colors = NULL,
                           n_rows = 1, legend_cols = 3, legend_pos = "bottom",
                           legend_key_size = 0.5, ...){
 
-  # [Steps 1-3: Data consolidation and joining remain the same]
+  library(tidyverse)
+  library(ggpattern)
+  library(ggnewscale)
+
+  # [Steps 1-3 remain the same as your working version]
   plot_df <- data.frame()
   for (i in seq_along(feature_tables)) {
     ft <- feature_tables[[i]]
@@ -1442,67 +1461,70 @@ barplots_grid <- function(feature_tables, experiments_names, strains = FALSE,
     plot_df_filtered$species2 <- factor(plot_df_filtered$species2, levels = species_order)
   }
 
-  # --- Step 4: Plotting with Enhanced Patterns ---
   p1 <- ggplot(data = plot_df_filtered) +
     facet_wrap(~experiment, nrow = n_rows, scales = "free_x")
 
+  # --- STEP 4: Main Bars ---
   if (isTRUE(strains)) {
-    p1 <- p1 + ggpattern::geom_bar_pattern(
+    p1 <- p1 + geom_bar_pattern(
       aes(x = sample, y = abundance, fill = species2, pattern = strain, pattern_density = strain),
       position = "fill", stat = "identity", color = "black", linewidth = 0.1,
-      # BIGGER & SPACED PATTERNS
-      pattern_color = "white",
-      pattern_fill = "white",
-      pattern_density = 0.05,
-      #pattern_spacing = 0.04, # Increased from 0.02 for more space
-      #pattern_size = 0.5,    # Thicker lines/dots
-      pattern_angle = 45
+      pattern_color = "white", pattern_fill = "white",
+      pattern_spacing = 0.04, pattern_size = 0.1, pattern_angle = 45
     ) +
-      ggpattern::scale_pattern_manual(
-        values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"),
-        name = "Strain"
-      ) +
-      ggpattern::scale_pattern_spacing_manual(
-        # Match the spacing here to the geom_bar_pattern for the legend to work
-        values = c("Strain 1" = 0, "Strain 2" = unit(2.5, "mm"), "Strain 3" = unit(2.5, "mm"))
-      )
+      scale_pattern_manual(values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"), name = "Strain") +
+      scale_pattern_density_manual(values = c("Strain 1" = 0, "Strain 2" = 0.3, "Strain 3" = 0.3), guide = "none")
   } else {
     p1 <- p1 + geom_bar(aes(x = sample, y = abundance, fill = species2),
                         position = "fill", stat = "identity", color = "black", linewidth = 0.1)
   }
 
-  p1 <- p1 + scale_fill_manual(values = colour_palette, name = "Species")
+  # --- FIX: Define Species Guide directly in the scale ---
+  p1 <- p1 + scale_fill_manual(
+    values = colour_palette,
+    name = "Species",
+    guide = guide_legend(
+      ncol = legend_cols,
+      # This targets ONLY the Species labels for italics
+      label.theme = element_text(face = "italic", size = 12),
+      override.aes = list(pattern = "none", pattern_fill = NA, pattern_color = NA)
+    )
+  )
 
+  # --- STEP 5: Metadata Strip (The reason for the bug) ---
   if (!is.null(metadata_df)) {
     p1 <- p1 +
-      ggnewscale::new_scale_fill() +
+      new_scale_fill() +
       geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -0.07, ymax = -0.02, fill = !!sym(metadata_col))) +
-      scale_fill_manual(values = metadata_colors, name = "Cluster")
+      scale_fill_manual(
+        values = metadata_colors,
+        name = metadata_col,
+        # Ensure cluster legend stays PLAIN (not italic)
+        guide = guide_legend(label.theme = element_text(face = "plain", size = 12))
+      )
   }
 
-  # --- Step 6: Fixing the Pattern Legend ---
+  # --- STEP 6: Final Theme ---
   p1 <- p1 +
     theme_void() +
     theme(
       axis.title.y = element_text(size = 12, angle = 90),
-      axis.text.y = element_text(size = 10),
+      axis.text.y = element_text(size = 12),
       axis.title.x = element_text(size = 12, margin = margin(t = 10)),
-      axis.text.x = element_text(angle = 90, size = 10, vjust = 0.5, hjust = 1),
+      axis.text.x = element_text(angle = 90, size = 12, vjust = 0.5, hjust = 1),
       legend.position = legend_pos,
       legend.box = "vertical",
-      legend.key.size = unit(legend_key_size, "cm"), # Larger keys help show patterns
-      strip.text = element_text(size = 11, face = "bold", margin = margin(b = 5))
+      legend.key.size = unit(legend_key_size, "cm"),
+      strip.text = element_text(size = 12, face = "bold", margin = margin(b = 5))
     ) +
+    # We only need the pattern guide here now
     guides(
-      fill = guide_legend(
-        ncol = legend_cols,
-        override.aes = list(pattern = "none", pattern_fill = NA, pattern_color = NA)
-      ),
       pattern = guide_legend(
-        override.aes = list(
-          fill = "white",
-          pattern_spacing = 0.02 # Smaller spacing for the legend key makes patterns repeat correctly
-        )
+        label.theme = element_text(size = 12),
+        override.aes = list(fill = "white",
+                            pattern_spacing = 0.02,
+                            pattern_size = 0.2,
+                            pattern_density = 0.2)
       )
     ) +
     coord_cartesian(ylim = c(-0.07, 1), clip = "off")
@@ -3608,12 +3630,12 @@ summarize_markers_and_heatmap_with_classes <- function(
   if (!is.null(out_file)) {
     save_ht(ht, out_file, out_width, out_height, out_dpi, legend_side, merge_legends)
   } else {
-    ComplexHeatmap::draw(
-      ht,
-      heatmap_legend_side = legend_side,
-      annotation_legend_side = legend_side,
-      merge_legend = merge_legends
-    )
+    #ComplexHeatmap::draw(
+    #  ht,
+    #  heatmap_legend_side = legend_side,
+    #  annotation_legend_side = legend_side,
+    #  merge_legend = merge_legends
+    #)
   }
 
   # Return key objects for reuse/inspection
