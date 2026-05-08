@@ -3589,7 +3589,7 @@ summarize_markers_and_heatmap_with_classes <- function(
     X_display,
     name = "z",
     col  = col_fun,
-    show_row_names = TRUE,
+    show_row_names = FALSE,
     show_column_names = FALSE,
     cluster_rows = TRUE,
     cluster_columns = TRUE,
@@ -4221,14 +4221,18 @@ plot_replicate_similarity <- function(dist_tbl, metadata, syncom_order = NULL, n
     labs(
       x = "Time point",
       y = "Replicate dissimilarity (Bray-Curtis)",
-      title = "Supplementary Figure 2A: Replicate dissimilarity per SynCom",
+      #title = "Supplementary Figure 2A: Replicate dissimilarity per SynCom",
       color = "Community Cluster"
     ) +
     theme_minimal(base_size = 12) +
     theme(
       panel.grid.minor = element_blank(),
-      strip.text = element_text(face = "bold", size = 9),
+      strip.text = element_text(face = "bold", size = 12),
       legend.position = "bottom",
+      axis.text.y = element_text(size = 12),
+      axis.text.x = element_text(size = 12),
+      legend.title    = ggplot2::element_text(size = 12),
+      legend.text     = ggplot2::element_text(size = 12),
       panel.border = element_rect(colour = "grey90", fill = NA, size = 0.5)
     )
 }
@@ -4511,14 +4515,18 @@ plot_distance_to_final <- function(per_sample, summary_tbl, metadata, syncom_ord
     labs(
       x = "Time point",
       y = "Bray-Curtis distance to final state (T4)",
-      title = "Supplementary Figure 2B: Stabilization toward final community composition",
+      #title = "Supplementary Figure 2B: Stabilization toward final community composition",
       color = "Community Cluster"
     ) +
     theme_minimal(base_size = 12) +
     theme(
       panel.grid.minor = element_blank(),
-      strip.text = element_text(face = "bold", size = 9),
+      strip.text = element_text(face = "bold", size = 12),
       legend.position = "bottom",
+      axis.text.y = element_text(size = 12),
+      axis.text.x = element_text(size = 12),
+      legend.title    = ggplot2::element_text(size = 12),
+      legend.text     = ggplot2::element_text(size = 12),
       panel.border = element_rect(colour = "grey90", fill = NA, size = 0.5)
     )
 }
