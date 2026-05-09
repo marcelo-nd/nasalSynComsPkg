@@ -1071,9 +1071,7 @@ cluster_barplot_panels <- function(
     p1 <- p1 + scale_fill_manual(values = colour_palette, drop = FALSE)
   }
 
-  # --- CAPTURE VISUAL ORDER ---
-  # This mimics how ggplot draws the facets: Cluster 1, then Cluster 2...
-  # and inside those clusters, Sample A, then Sample B...
+  # --- Captures visual order samples to use in further analyses ---
   final_samples <- df_long %>%
     dplyr::arrange(Cluster, Sample) %>%
     dplyr::pull(Sample) %>%
@@ -1083,7 +1081,7 @@ cluster_barplot_panels <- function(
   return(list(
     plot = p1,
     df_long = df_long,
-    sample_order = final_samples # This is your "Master Order"
+    sample_order = final_samples
   ))
 }
 
@@ -1423,12 +1421,6 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
                           metadata_df = NULL, metadata_col = "Cluster", metadata_colors = NULL,
                           n_rows = 1, legend_cols = 3, legend_pos = "bottom",
                           legend_key_size = 0.5, ...){
-
-  library(tidyverse)
-  library(ggpattern)
-  library(ggnewscale)
-
-  # [Steps 1-3 remain the same as your working version]
   plot_df <- data.frame()
   for (i in seq_along(feature_tables)) {
     ft <- feature_tables[[i]]
@@ -1479,7 +1471,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
                         position = "fill", stat = "identity", color = "black", linewidth = 0.1)
   }
 
-  # --- FIX: Define Species Guide directly in the scale ---
+  # --- Define Species Guide directly in the scale ---
   p1 <- p1 + scale_fill_manual(
     values = colour_palette,
     name = "Species",
@@ -1491,7 +1483,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
     )
   )
 
-  # --- STEP 5: Metadata Strip (The reason for the bug) ---
+  # --- STEP 5: Metadata Strip ---
   if (!is.null(metadata_df)) {
     p1 <- p1 +
       new_scale_fill() +
@@ -1517,7 +1509,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
       legend.key.size = unit(legend_key_size, "cm"),
       strip.text = element_text(size = 12, face = "bold", margin = margin(b = 5))
     ) +
-    # We only need the pattern guide here now
+    # Define Pattern guide
     guides(
       pattern = guide_legend(
         label.theme = element_text(size = 12),
@@ -1918,7 +1910,7 @@ align_samples_attr <- function(metab_df, metadata_df, sample_col = NULL) {
     }
   }
 
-  # Intersect & align
+  # Intersect and align
   common <- intersect(colnames(metab_df), md[[sample_col]])
   if (length(common) == 0) stop("No overlapping sample IDs between metabolome and metadata.")
 
@@ -2149,7 +2141,7 @@ pcoa_flex <- function(
   pos <- eig[eig > 0]
   explained <- 100 * pos / sum(pos)
 
-  # ---------- Plot (tidy evaluation; no aes_string) ----------
+  # ---------- Plot ----------
   # Build dynamic point aesthetics (color always; shape optional)
   pt_map <- if (is.null(shape_var)) {
     ggplot2::aes(color = .data[[color_var]])
@@ -3345,7 +3337,7 @@ summarize_markers_and_heatmap_with_classes <- function(
     scale_rows = TRUE,
     heatmap_colors = NULL,
     cluster_colors = NULL,
-    col_annot_colors = NULL, # New argument: list of lists
+    col_annot_colors = NULL,
     class_na_label = "Unclassified",
     class_na_color = "#BDBDBD",
     out_file   = NULL,
@@ -3359,7 +3351,7 @@ summarize_markers_and_heatmap_with_classes <- function(
     col_annot_vars = NULL
 ) {
 
-  # --- Step A: align + column annotation (Logic remains same) ---
+  # --- Step A: align + column annotation ---
   if (is.null(colnames(metab_df))) stop("metab_df must have sample column names.")
   if (!(cluster_var %in% colnames(metadata_df))) stop("Cluster column not found.")
 
@@ -3548,12 +3540,6 @@ summarize_markers_and_heatmap_with_classes <- function(
     ann_colors   <- c(ann_colors, row_palettes)
   }
 
-  # ---- ComplexHeatmap dependencies ----
-  if (!requireNamespace("ComplexHeatmap", quietly = TRUE) ||
-      !requireNamespace("circlize", quietly = TRUE)) {
-    stop("Please install packages 'ComplexHeatmap' and 'circlize' for multi-column legends.")
-  }
-
   # Heatmap color function (symmetric around 0 for z-scored data)
   zlim <- max(abs(range(X_display, finite = TRUE)))
   col_fun <- circlize::colorRamp2(c(-zlim, 0, zlim), c("#2166AC","#F7F7F7","#B2182B"))
@@ -3629,7 +3615,7 @@ summarize_markers_and_heatmap_with_classes <- function(
   # ---- Draw or save ----
   if (!is.null(out_file)) {
     save_ht(ht, out_file, out_width, out_height, out_dpi, legend_side, merge_legends)
-  } else {
+  } else { # Do nothing
     #ComplexHeatmap::draw(
     #  ht,
     #  heatmap_legend_side = legend_side,
