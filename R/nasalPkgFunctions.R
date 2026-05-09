@@ -3596,7 +3596,7 @@ summarize_markers_and_heatmap_with_classes <- function(
     top_annotation  = ha_top,
     left_annotation = ha_left,
     heatmap_legend_param = list(ncol = 2),
-    column_title = sprintf("Top markers per cluster (top %d, FDR <= %.02f)", top_n, p_adj_thresh)
+    #column_title = sprintf("Top markers per cluster (top %d, FDR <= %.02f)", top_n, p_adj_thresh)
   )
 
   # ---- Helper for saving heatmaps to common formats ----
