@@ -1041,7 +1041,7 @@ cluster_barplot_panels <- function(
           title = "Species",
           override.aes = list(pattern = "none"),
           # Species in italics
-          label.theme = element_text(size = 12, face = "italic")
+          label.theme = element_text(size = 14, face = "italic")
         )
       )
   }
@@ -1057,11 +1057,11 @@ cluster_barplot_panels <- function(
     theme_bw() +
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-      axis.text.y = element_text(size = 12),
-      strip.text  = element_text(color = strip_color, face = "bold"),
+      axis.text.y = element_text(size = 14),
+      strip.text  = element_text(color = strip_color, face = "bold", size = 14),
       panel.spacing = unit(0.1, "lines"),
-      legend.text = element_text(size = 12),
-      legend.title = element_text(size = 12, face = "bold")
+      legend.text = element_text(size = 14),
+      legend.title = element_text(size = 14, face = "bold")
     )
 #    ) +
 #    labs(y = "Relative Abundance", title = paste("Nasal SynCom Clusters (k =", best_k, ")"))
@@ -2195,7 +2195,7 @@ pcoa_flex <- function(
           ),
           inherit.aes = FALSE,
           level = 0.95, type = "norm",
-          linewidth = 0.6, alpha = 0.9
+          linewidth = 1, alpha = 0.9
         )
       } else {
         # Use a second color scale for ellipses if ellipse grouping differs from point color
@@ -2212,7 +2212,7 @@ pcoa_flex <- function(
             ),
             inherit.aes = FALSE,
             level = 0.95, type = "norm",
-            linewidth = 0.7, alpha = 0.9
+            linewidth = 1, alpha = 0.9
           ) +
           {
             if (!is.null(ellipse_palette))
