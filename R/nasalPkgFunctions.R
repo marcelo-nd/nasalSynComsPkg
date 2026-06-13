@@ -1458,14 +1458,14 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
 
   # --- STEP 4: Main Bars ---
   if (isTRUE(strains)) {
-    p1 <- p1 + geom_bar_pattern(
+    p1 <- p1 + ggpattern::geom_bar_pattern(
       aes(x = sample, y = abundance, fill = species2, pattern = strain, pattern_density = strain),
       position = "fill", stat = "identity", color = "black", linewidth = 0.1,
       pattern_color = "white", pattern_fill = "white",
       pattern_spacing = 0.04, pattern_size = 0.1, pattern_angle = 45
     ) +
-      scale_pattern_manual(values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"), name = "Strain") +
-      scale_pattern_density_manual(values = c("Strain 1" = 0, "Strain 2" = 0.3, "Strain 3" = 0.3), guide = "none")
+      ggpattern::scale_pattern_manual(values = c("Strain 1" = "none", "Strain 2" = "circle", "Strain 3" = "stripe"), name = "Strain") +
+      ggpattern::scale_pattern_density_manual(values = c("Strain 1" = 0, "Strain 2" = 0.3, "Strain 3" = 0.3), guide = "none")
   } else {
     p1 <- p1 + geom_bar(aes(x = sample, y = abundance, fill = species2),
                         position = "fill", stat = "identity", color = "black", linewidth = 0.1)
@@ -1486,7 +1486,7 @@ barplots_grid <- function(feature_tables, experiments_names, shared_samples = FA
   # --- STEP 5: Metadata Strip ---
   if (!is.null(metadata_df)) {
     p1 <- p1 +
-      new_scale_fill() +
+      ggnewscale::new_scale_fill() +
       geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -0.07, ymax = -0.02, fill = !!sym(metadata_col))) +
       scale_fill_manual(
         values = metadata_colors,
